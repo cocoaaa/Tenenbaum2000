@@ -20,4 +20,8 @@ ipython_config.py
 data/
 trained/
 results/
+runs/
+
+# log files
+nohup.out
 
