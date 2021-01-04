@@ -21,6 +21,8 @@ data/
 trained/
 results/
 runs/
+lightning_logs/
+temp-logs/
 
 # log files
 nohup.out
