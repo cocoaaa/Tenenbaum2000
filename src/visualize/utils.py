@@ -9,7 +9,6 @@ from typing import Tuple, Iterable, Optional, Union, List
 import warnings
 
 from src.utils.misc import info
-from src.data.datamodules.base_datamodule import BaseDataModule
 from src.data.transforms.functional import unnormalize
 
 def show_npimgs(npimgs: Iterable[np.ndarray], *,
@@ -107,7 +106,8 @@ def get_fig(n_total: int, nrows: int= None, factor=3.0) -> Tuple[plt.Figure, plt
     return f, axes
 
 
-def show_batch(dm: BaseDataModule,
+def show_batch(dm, #: BaseDataModule,
+               mode: str='train',
                n_show: int = 16,
                show_unnormalized: bool = True,
                **kwargs):
@@ -120,10 +120,12 @@ def show_batch(dm: BaseDataModule,
         - cmap (str): eg. "gray"
         - title (for the main figure's suptitle)
     """
-    with torch.no_grad() and warnings.catch_warnings():
+    # with torch.no_grad() and
+    with warnings.catch_warnings():
         warnings.filterwarnings("ignore", module="matplotlib*")
 
-        x, y = next(iter(dm.train_dataloader()))
+        dl = getattr(dm, f"{mode}_dataloader")()
+        x, y = next(iter(dl))
 
         if show_unnormalized:
             train_mean, train_std = dm.train_mean, dm.train_std

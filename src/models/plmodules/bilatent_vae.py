@@ -7,6 +7,7 @@ from torch import nn
 from torch.nn import functional as F
 import pytorch_lightning as pl
 from pytorch_lightning.core.lightning import LightningModule
+from pytorch_lightning.metrics import Accuracy
 
 from pprint import pprint
 from .base import BaseVAE
@@ -14,11 +15,11 @@ from .base import BaseVAE
 class BiVAE(BaseVAE):
     def __init__(self, *,
                  in_shape: Union[torch.Size, Tuple[int,int,int]],
-                 n_classes: int,
+                 n_styles: int,
 
                  latent_dim: int,
-                 hidden_dims: List,
-                 adversary_dims: List,
+                 hidden_dims: List[int],
+                 adversary_dims: List[int],
                  learning_rate: float,
                  act_fn: Callable= nn.LeakyReLU(),
                  size_average: bool = False,
@@ -49,7 +50,7 @@ class BiVAE(BaseVAE):
         self.dims = in_shape
         self.n_channels, self.in_h, self.in_w = in_shape
         # About label y
-        self.n_classes = n_classes # num of styles from which the adversary to predict
+        self.n_styles = n_styles # num of styles from which the adversary to predict
         # About model configs
         self.latent_dim = latent_dim
         self.content_dim = int(self.latent_dim/2)
@@ -123,12 +124,16 @@ class BiVAE(BaseVAE):
         # Build style classifier:
         # Given a content or style code, predict its style label
         # zc or zs --> scores (a vector of len = n_classes)
-        _adv_dims = [self.content_dim, *self.adversary_dims, self.n_classes]
+        _adv_dims = [self.content_dim, *self.adversary_dims, self.n_styles]
         adv_layers = []
         for num_in, num_out in zip(_adv_dims, _adv_dims[1:]):
             adv_layers.append(nn.Sequential(nn.Linear(num_in, num_out), self.act_fn))
         self.adversary = nn.Sequential(*adv_layers)
 
+        # Add the accuracy metric for the style-classification based on the style code
+        self.train_style_acc = Accuracy()
+        self.val_style_acc = Accuracy()
+        self.test_style_acc = Accuracy()
 
     @property
     def name(self):
@@ -228,8 +233,6 @@ class BiVAE(BaseVAE):
         """
         pass
 
-
-
     def combine_content_style(self, dict_z: Dict[str, Tensor]) -> Tensor:
         """
         Combine a mini-batch of content codes and a mini-batch of style codes
@@ -275,28 +278,29 @@ class BiVAE(BaseVAE):
 
     def predict_y(self, z_partition):
         """
+        Use the style classifer to predict the style label given either content or style code.
         :param z_partition:  (BS, self.content_dim), same as (BS, style_dim)
-        :return: y_scores: predicted styles  (BS, n_classes)
+        :return: y_scores: predicted styles  (BS, n_styles)
         """
-        y_scores = self.adversary(z_partition) #(BS, n_classes)
+        y_scores = self.adversary(z_partition) #(BS, n_styles)
         return y_scores
 
     def compute_loss_c(self, c:torch.Tensor) -> Tensor:
         """
         Using the current adversary, compute the prediction loss of style
         given the content codes.
-        - Set the target to be a uniform dist. over classes. ie (BS, n_classes)
-        with values = 1/n_classes
+        - Set the target to be a uniform dist. over classes. ie (BS, n_styles)
+        with values = 1/n_styles
 
         :param c:
         :return: loss_c (torch.float32)
         """
         bs = len(c)
-        # target = torch.ones((bs, self.n_classes), device=c.device)
-        # target /= self.n_classes # TODO: possible to not create this as a tensor, as it has all the same value ie. 1/self.n_classes
-        scores = self.predict_y(c)
-        log_probs = nn.LogSoftmax(dim=1)(scores) #(bs, n_classes)
-        loss_c = - log_probs.mean(dim=1) # same as: log_probs.sum(dim=1) / self.n_class
+        # target = torch.ones((bs, self.n_styles), device=c.device)
+        # target /= self.n_styles # TODO: possible to not create this as a tensor, as it has all the same value ie. 1/self.n_styles
+        scores = self.predict_y(c); print("score_c: ", scores.shape) #(bs, n_styles)
+        log_probs = nn.LogSoftmax(dim=1)(scores) #(bs, n_styles)
+        loss_c = - log_probs.mean(dim=1) # same as: log_probs.sum(dim=1) / self.n_styles
         loss_c = loss_c.mean(dim=0) # adversarial loss per content code
 
         return loss_c
@@ -331,7 +335,6 @@ class BiVAE(BaseVAE):
         kld_weight = kwargs.get('kld_weight', 1.0) # "Beta" in BetaVAE
         adv_loss_weight = kwargs.get('adv_loss_weight', 1.0) # Weight btw vae_loss and adv_loss
 
-
         target_x, target_y = batch
         # qparams
         mu_qc, logvar_qc = out_dict["mu_qc"], out_dict["logvar_qc"]
@@ -340,7 +343,6 @@ class BiVAE(BaseVAE):
         c, s, = out_dict["c"], out_dict["s"]
         # output of decoder
         mu_x_pred = out_dict["mu_x_pred"]
-
 
         # Combine mu_qc and mu_qs. Same for logvars
         mu_z = self.combine_content_style({"c": mu_qc, "s": mu_qs})
@@ -354,7 +356,10 @@ class BiVAE(BaseVAE):
 
         # Compute adversarial loss
         adv_loss_c = self.compute_loss_c(c) # loss from "negatives"
-        adv_loss_s = self.compute_loss_s(s, target_y) #loss from "positives"
+        #adv_loss_s = self.compute_loss_s(s, target_y) #loss from "positives"
+        score_s = self.predict_y(s); print("score_s: ", score_s.shape) #(bs, n_styles)
+        adv_loss_s = nn.CrossEntropyLoss(reduction='mean')(score_s,
+                                                       target_y)  # estimated loss computed as averaged loss (over batch)
         if self.is_contrasive:
             adv_loss = adv_loss_c + adv_loss_s
         else:
@@ -369,6 +374,7 @@ class BiVAE(BaseVAE):
              'recon_loss': recon_loss,
              'kld': kld,
             'vae_loss': vae_loss,
+            "score_s": score_s,# (BS, n_styles); needed to compute the style accuracy at `training_step`
             'adv_loss_s': adv_loss_s,
             "adv_loss": adv_loss,
             "loss": loss
@@ -421,7 +427,7 @@ class BiVAE(BaseVAE):
     def training_step(self, batch, batch_idx):
         """
         Implements one mini-batch iteration: x -> model(x) -> loss or loss_dict
-        `loss` is the last node of the model'scomputational graph, ie. starting node of
+        `loss` is the last node of the model's computational graph, ie. starting node of
         backprop.
         """
         x, y = batch
@@ -432,24 +438,26 @@ class BiVAE(BaseVAE):
         # Log using tensorboard logger
         # For scalar metrics, self.log will do
         self.log('train/loss', loss_dict["loss"], on_step=True, on_epoch=True, prog_bar=True, logger=True)
-
+        # Update and log the style_acc metric
+        score_s = loss_dict.pop("score_s").detach().clone() # we don't want to compute metric on the loss computational graph
+        train_acc = self.train_style_acc(score_s, y)
+        self.log('train/style_acc', self.train_style_acc, on_step=True, on_epoch=True)
         return {'loss': loss_dict["loss"],
                 'log': loss_dict}
+
 
     def validation_step(self, batch, batch_ids):
         x, y = batch
         out = self(x)
         loss_dict = self.loss_function(out, batch, mode="val")
 
+        # Log the validation loss
         self.log('val/loss', loss_dict["loss"], on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
-        # Method 1-(1)accumulate metrics on validation batch
-        # self.log('val/acc_step', self.val_acc.compute())
-
-        # Preferred. Method 1-(2)
-        # self.val_acc(logits, y)
-        # self.log('val/acc', self.val_acc, on_step=True, on_epoch=True)
-
+        # Update and log val_style_acc metric
+        score_s = loss_dict.pop('score_s').detach().clone()
+        self.val_style_acc(score_s, y)
+        self.log('val/style_acc', self.val_style_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return {"val_loss": loss_dict["loss"],
                 'log': loss_dict}
 
@@ -459,9 +467,11 @@ class BiVAE(BaseVAE):
         loss_dict = self.loss_function(out, x.detach().clone(), mode="test")
 
         self.log('test/loss', loss_dict["loss"], prog_bar=True, logger=True)
-        # Preferred. Method 1-(2)
-        # self.test_acc(logits, y)
-        # self.log('test/acc', self.test_acc, on_epoch=True)
+
+        # Update and log test_style_acc metric
+        score_s = loss_dict.pop('score_s').detach().clone()
+        self.test_style_acc(score_s, y)
+        self.log('test/style_acc', self.test_style_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         return {"val_loss": loss_dict["loss"],
                 'log': loss_dict}

@@ -24,6 +24,8 @@ runs/
 lightning_logs/
 temp-logs/
 
+# Don't ignore src/data folder
+!src/data
 # log files
 nohup.out
 
