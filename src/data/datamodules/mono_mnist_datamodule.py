@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from typing import Union, Tuple, Optional
+from typing import Union, Tuple, Optional, Callable
 from pathlib import Path
 import torch
 import pytorch_lightning as pl
@@ -20,6 +20,7 @@ class MonoMNISTDataModule(BaseDataModule):
                  seed: int=123,
                  in_shape: Tuple,
                  batch_size: int,
+                 colorstr_transform: Optional[Callable] = None,
                  pin_memory: bool = True,
                  num_workers: int = 16,
                  shuffle: bool = True,
@@ -74,7 +75,7 @@ class MonoMNISTDataModule(BaseDataModule):
             transforms.Resize(in_shape[-2:]),
             transforms.Normalize(self.train_mean, self.train_std)
         ])
-
+        self.colorstr_transform = colorstr_transform
         # Update hparams with MNISTM specifics
         self.hparams.update({
             "color": self.color,
@@ -105,7 +106,9 @@ class MonoMNISTDataModule(BaseDataModule):
                                 color=self.color,
                                 seed=self.seed,
                                 train=True,
-                                transform=self.transform)
+                                transform=self.transform,
+                                 colorstr_transform=self.colorstr_transform,
+                                     )
             self.n_train = int(len(self.full_ds)*0.7)
             self.n_val = len(self.full_ds) - self.n_train
             self.train_ds, self.val_ds = random_split(self.full_ds, [self.n_train, self.n_val],
@@ -117,7 +120,9 @@ class MonoMNISTDataModule(BaseDataModule):
                                                color=self.color,
                                                seed=self.seed,
                                                train=False,
-                                               transform=self.transform)
+                                               transform=self.transform,
+                                               colorstr_transform=self.colorstr_transform,
+                                               )
 
     def train_dataloader(self):
         return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=self.shuffle,

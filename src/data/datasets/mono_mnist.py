@@ -12,8 +12,9 @@ class MonoMNIST(Dataset):
     """
     - data_root: root dir that contains "mnist_{color}.pkl" files
     - color: str; one of "red", "green", "blue"
-    - transform
-    - target_transform
+    - transform: a callable that works on a torch tensor for 3-channel image (3,32,32)
+    - target_transform: a callable that works on a int input for digit id (0, ..., 9)
+    - colorstr_transform: a callable that works on a string type input (eg. "red", "blue")
     - download
     - seed
     - use_train_dataset
@@ -31,6 +32,7 @@ class MonoMNIST(Dataset):
             color: str,
             transform: Optional[Callable] = None,
             target_transform: Optional[Callable] = None,
+            colorstr_transform: Optional[Callable] = None,
             download: bool = True,
             seed: int=123,
             train: bool=True,
@@ -48,6 +50,7 @@ class MonoMNIST(Dataset):
             self.transform = transforms.Compose([self.transform, transform])
 
         self.target_transform = target_transform
+        self.colorstr_transform = colorstr_transform
         self.seed = seed
         self.train = train
         self.mode = 'train' if self.train else 'test'
@@ -65,24 +68,38 @@ class MonoMNIST(Dataset):
 
         self.data, self.targets = joblib.load(fn)
 
-    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+    def __getitem__(self, index: int) -> Dict[str,Any]:
         """
         Args:
             index (int): Index
 
         Returns:
-            tuple: (pil_image, target) where target is index of the target class.
+            Dict: {
+                "img": pil_image,
+                "digit": target,
+                "color" : str_dataset_name/color
+            } where target is index of the target class.
         """
-        img, target = self.data[index], int(self.targets[index])
+        img, digit = self.data[index], int(self.targets[index])
         # img is a PIL Image of mode ('L'); unit8 in [0,...,255]; shape (28,28)
 
         if self.transform is not None:  # always perform the required basic transforms (ie. to Tensor and monochromizer)
             img = self.transform(img)
 
         if self.target_transform is not None:
-            target = self.target_transform(target)
+            digit = self.target_transform(digit)
 
-        return img, target
+        color = self.color
+        if self.colorstr_transform is not None:
+            color = self.colorstr_transform(color)
+
+        sample = {
+            "img": img,
+            "digit": digit,
+            "color": color
+        }
+
+        return sample
 
     def __len__(self) -> int:
         return len(self.data)
@@ -116,6 +133,9 @@ class MonoMNIST(Dataset):
         :return: None; Saves the 4 subset datasets as a dictionary of
             key=digit_id (int) and value=List[PIL.Image]
         """
+        out_dir = Path(out_dir)
+        if not out_dir.exists():
+            out_dir.mkdir(parents=True)
         mode = 'train' if use_train_dataset else 'test'
         ds = datasets.MNIST(mnist_data_root, train=use_train_dataset, download=True)
         digits = defaultdict(list)
@@ -165,7 +185,8 @@ class MonoMNIST(Dataset):
             bn = cls._fn_formatspec.format(mode=mode,
                                         color=color,
                                         seed=seed)
-            out_fn = Path(out_dir) / bn
+            out_fn = out_dir / bn
+
             joblib.dump(XY(color), out_fn)
             print("Saved: ", out_fn)
 

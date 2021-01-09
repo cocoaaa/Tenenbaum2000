@@ -31,8 +31,10 @@ class MultiMonoMNISTDataModule(MultiSourceDataModule):
 
 
         """
+        :param data_root: - data_root: root dir that contains "mnist_{color}.pkl" files (ie. 4 subsets of
+        train or test MNIST dataset; one subset for each Monochrome MNIST (red, green, blue, gray)
+            Eg. data_root = Path('/data/hayley-old/Tenanbaum2000/data/Mono-MNIST/')
 
-        :param full_ds: a concatenated dataset which contains multiple datasets
         :param color: One of gray, red, green, blue
         :param seed: Seed that was used to split the original MNIST into 4 subsets
          to generate the source datasets of each monochrome (eg. 123)
@@ -134,10 +136,15 @@ class MultiMonoMNISTDataModule(MultiSourceDataModule):
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
-        parser.add_argument('--n_contents', type=int, default=10)
+        # Required
+        parser.add_argument('--data_root', type=str,
+                            default='/data/hayley-old/Tenanbaum2000/data/Mono-MNIST/')
         parser.add_argument('--colors', nargs="+", type=str)
+        parser.add_argument('--seed', type=int, default=123)
+        # Optional
         parser.add_argument('--in_shape', nargs=3, type=int, default=[3, 32, 32])
-        parser.add_argument('-bs', '--batch_size', type=int, default=32)
+        parser.add_argument('--n_contents', type=int, default=10)
+        parser.add_argument('-bs', '--batch_size', type=int, default=128)
         parser.add_argument('--pin_memory', action="store_true", default=True)
         parser.add_argument('--num_workers', type=int, default=16)
         parser.add_argument('--shuffle', type=bool, default=True)
