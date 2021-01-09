@@ -1,4 +1,4 @@
-from typing import List, Callable, Union, Any, TypeVar, Tuple, Dict
+from typing import List, Callable, Union, Optional, Any, TypeVar, Tuple, Dict
 Tensor = TypeVar('torch.tensor')
 from argparse import ArgumentParser
 import numpy as np
@@ -18,13 +18,15 @@ class BiVAE(BaseVAE):
                  n_styles: int,
 
                  latent_dim: int,
-                 hidden_dims: List[int],
-                 adversary_dims: List[int],
+                 hidden_dims: Optional[List[int]],
+                 adversary_dims: Optional[List[int]],
                  learning_rate: float,
                  act_fn: Callable= nn.LeakyReLU(),
                  size_average: bool = False,
 
                  is_contrasive: bool = True,
+                 kld_weight: float=1.0,
+                 adv_loss_weight: float=1.0,
                  **kwargs) -> None:
         """
         VAE with extra adversarial loss from a style discriminator to enforce the information from original data to be
@@ -42,6 +44,10 @@ class BiVAE(BaseVAE):
         :param size_average: bool; whether to average the recon_loss across the pixel dimension. Default: False
         :param is_contrasive bool; True to use both adversarial losses from the content and style codes
             If False, use only the loss from the style code's classification prediction as the adversarial loss
+        :param kld_weight (float); Beta in BetaVAE that is a relative weight of the kld vs. recon-loss
+            vae_loss = recon_loss + kld_weight * kld
+        :param adv_loss_weight (float); Weight btw vae_loss and adv_loss
+            loss = vae_loss + adv_loss_weight * adv_loss
         :param kwargs: will be part of self.hparams
             Eg. batch_size, kld_weight
         """
@@ -58,10 +64,12 @@ class BiVAE(BaseVAE):
         self.act_fn = act_fn
         self.learning_rate = learning_rate
         self.size_average = size_average
-        self.hidden_dims = hidden_dims
-        self.adversary_dims = adversary_dims
+        self.hidden_dims = hidden_dims or [32, 64, 128, 256]#, 512]
+        self.adversary_dims = adversary_dims or  [100, 50, 25]
+        # Loss
         self.is_contrasive = is_contrasive
-
+        self.kld_weight = kld_weight
+        self.adv_loss_weight = adv_loss_weight
         # Save kwargs to tensorboard's hparams
         self.save_hyperparameters()
 
@@ -72,7 +80,7 @@ class BiVAE(BaseVAE):
         # Build Encoder
         modules = []
         in_c = self.n_channels
-        for h_dim in hidden_dims:
+        for h_dim in self.hidden_dims:
             modules.append(
                 nn.Sequential(
                     nn.Conv2d(in_c, out_channels=h_dim,
@@ -83,14 +91,14 @@ class BiVAE(BaseVAE):
             in_c = h_dim
 
         self.encoder = nn.Sequential(*modules)
-        self.len_flatten = hidden_dims[-1] * self.last_h * self.last_w
+        self.len_flatten = self.hidden_dims[-1] * self.last_h * self.last_w
         self.fc_flatten2qparams = nn.Linear(self.len_flatten, 2*self.content_dim+2*self.style_dim) # mu_qc, std_qc, mu_qs, std_qs (both c, s have the same dim, ie. `latent_dim`)
 
 
         # Build Decoder
         modules = []
         self.fc_latent2decoder = nn.Linear(self.latent_dim, self.len_flatten)
-        rev_hidden_dims = hidden_dims[::-1]
+        rev_hidden_dims = self.hidden_dims[::-1]
 
         for i in range(len(rev_hidden_dims) - 1):
             modules.append(
@@ -298,7 +306,7 @@ class BiVAE(BaseVAE):
         bs = len(c)
         # target = torch.ones((bs, self.n_styles), device=c.device)
         # target /= self.n_styles # TODO: possible to not create this as a tensor, as it has all the same value ie. 1/self.n_styles
-        scores = self.predict_y(c); print("score_c: ", scores.shape) #(bs, n_styles)
+        scores = self.predict_y(c); #print("score_c: ", scores.shape) #(bs, n_styles)
         log_probs = nn.LogSoftmax(dim=1)(scores) #(bs, n_styles)
         loss_c = - log_probs.mean(dim=1) # same as: log_probs.sum(dim=1) / self.n_styles
         loss_c = loss_c.mean(dim=0) # adversarial loss per content code
@@ -332,10 +340,12 @@ class BiVAE(BaseVAE):
             eg. has a key "kld_weight" to multiply the (negative) kl-divergence
         :return:
         """
-        kld_weight = kwargs.get('kld_weight', 1.0) # "Beta" in BetaVAE
-        adv_loss_weight = kwargs.get('adv_loss_weight', 1.0) # Weight btw vae_loss and adv_loss
 
-        target_x, target_y = batch
+        # Uppack the batch into a batch of img, content_labels, style_labels
+        target_x = batch['img'].detach().clone()
+        # label_c = batch['digit']  # digit/content label (int) -- currently not used
+        label_s = batch['color'].detach().clone()  # color/style label (int) -- used for adversarial loss_s
+
         # qparams
         mu_qc, logvar_qc = out_dict["mu_qc"], out_dict["logvar_qc"]
         mu_qs, logvar_qs = out_dict["mu_qs"], out_dict["logvar_qs"]
@@ -352,14 +362,13 @@ class BiVAE(BaseVAE):
         # Compute losses
         recon_loss = F.mse_loss(mu_x_pred, target_x, reduction='mean', size_average=self.size_average) # see https://github.com/pytorch/examples/commit/963f7d1777cd20af3be30df40633356ba82a6b0c
         kld = torch.mean(-0.5 * torch.sum(1 + logvar_z - mu_z ** 2 - logvar_z.exp(), dim = 1), dim = 0)
-        vae_loss = recon_loss + kld_weight * kld
+        vae_loss = recon_loss + self.kld_weight * kld
 
         # Compute adversarial loss
         adv_loss_c = self.compute_loss_c(c) # loss from "negatives"
         #adv_loss_s = self.compute_loss_s(s, target_y) #loss from "positives"
-        score_s = self.predict_y(s); print("score_s: ", score_s.shape) #(bs, n_styles)
-        adv_loss_s = nn.CrossEntropyLoss(reduction='mean')(score_s,
-                                                       target_y)  # estimated loss computed as averaged loss (over batch)
+        score_s = self.predict_y(s); #print("score_s: ", score_s.shape) #(bs, n_styles)
+        adv_loss_s = nn.CrossEntropyLoss(reduction='mean')(score_s, label_s)  # estimated loss computed as averaged loss (over batch)
         if self.is_contrasive:
             adv_loss = adv_loss_c + adv_loss_s
         else:
@@ -368,7 +377,7 @@ class BiVAE(BaseVAE):
         # Finally, full loss
         # Estimates for per-datapoint (ie. image), computed as an average over mini-batch
         # TODO: Noisy gradient estimate of the (full-batch) gradient thus need to be multipled by num_datapoints N
-        loss = vae_loss + adv_loss_weight * adv_loss
+        loss = vae_loss + self.adv_loss_weight * adv_loss
 
         loss_dict = {
              'recon_loss': recon_loss,
@@ -430,7 +439,9 @@ class BiVAE(BaseVAE):
         `loss` is the last node of the model's computational graph, ie. starting node of
         backprop.
         """
-        x, y = batch
+        x = batch['img']
+        # c_label = batch['digit'] # digit/content label (int) -- currently not used
+        label_s = batch['color'] # color/style label (int) -- used for adversarial loss_s
         out_dict = self(x)
         loss_dict = self.loss_function(out_dict, batch, mode="train")
         # breakpoint()
@@ -440,37 +451,43 @@ class BiVAE(BaseVAE):
         self.log('train/loss', loss_dict["loss"], on_step=True, on_epoch=True, prog_bar=True, logger=True)
         # Update and log the style_acc metric
         score_s = loss_dict.pop("score_s").detach().clone() # we don't want to compute metric on the loss computational graph
-        train_acc = self.train_style_acc(score_s, y)
+        train_acc = self.train_style_acc(score_s, label_s)
         self.log('train/style_acc', self.train_style_acc, on_step=True, on_epoch=True)
+
         return {'loss': loss_dict["loss"],
                 'log': loss_dict}
 
 
     def validation_step(self, batch, batch_ids):
-        x, y = batch
-        out = self(x)
-        loss_dict = self.loss_function(out, batch, mode="val")
+        x = batch['img']
+        # label_c = batch['digit']  # digit/content label (int) -- currently not used
+        label_s = batch['color']  # color/style label (int) -- used for adversarial loss_s
+        out_dict = self(x)
+        loss_dict = self.loss_function(out_dict, batch, mode="val")
 
         # Log the validation loss
         self.log('val/loss', loss_dict["loss"], on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         # Update and log val_style_acc metric
         score_s = loss_dict.pop('score_s').detach().clone()
-        self.val_style_acc(score_s, y)
+        self.val_style_acc(score_s, label_s)
         self.log('val/style_acc', self.val_style_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+
         return {"val_loss": loss_dict["loss"],
                 'log': loss_dict}
 
     def test_step(self, batch, batch_idx):
-        x, y = batch
-        out = self(x)
-        loss_dict = self.loss_function(out, x.detach().clone(), mode="test")
+        x = batch['img']
+        # label_c = batch['digit']  # digit/content label (int) -- currently not used
+        label_s = batch['color']  # color/style label (int) -- used for adversarial loss_s
+        out_dict = self(x)
+        loss_dict = self.loss_function(out_dict, x.detach().clone(), mode="test")
 
         self.log('test/loss', loss_dict["loss"], prog_bar=True, logger=True)
 
         # Update and log test_style_acc metric
         score_s = loss_dict.pop('score_s').detach().clone()
-        self.test_style_acc(score_s, y)
+        self.test_style_acc(score_s, label_s)
         self.log('test/style_acc', self.test_style_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         return {"val_loss": loss_dict["loss"],
@@ -484,10 +501,18 @@ class BiVAE(BaseVAE):
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
         # parser.add_argument('--in_shape', nargs="3",  type=int, default=[3,64,64])
+        # Required
         parser.add_argument('--latent_dim', type=int, required=True)
+        parser.add_argument('--n_styles', type=int, required=True)
+        # Recommended
         parser.add_argument('--hidden_dims', nargs="+", type=int) #None as default
-        parser.add_argument('--n_samples', type=int, required=True)
-        parser.add_argument('--act_fn', type=str, default="leaky_relu")
+        parser.add_argument('--adv_dims', dest="adversary_dims", nargs="+", type=int) #None as default
         parser.add_argument('-lr', '--learning_rate', type=float, default="1e-3")
+        parser.add_argument('--adv_weight', dest="adv_loss_weight", type=float, default="1.0")
+
+        parser.add_argument('--act_fn', type=str, default="leaky_relu")
+        # Specific to BiVAE
+        parser.add_argument('--is_contrasive', type=bool, default=True)
+        parser.add_argument('--kld_weight', type=float, default="1.0")
 
         return parser
