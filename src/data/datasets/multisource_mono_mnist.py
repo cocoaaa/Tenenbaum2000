@@ -2,6 +2,7 @@ import joblib
 from pathlib import Path
 from typing import Any,Tuple, Optional,  Union, Callable, Dict, Iterable, List
 from torch.utils.data import Dataset, ConcatDataset, DataLoader, random_split
+from torchvision import transforms
 import torch
 from .mono_mnist import MonoMNIST
 
@@ -79,18 +80,24 @@ class MultiMonoMNIST(Dataset):
             colors: List[str],
             transform: Optional[Callable] = None,
             target_transform: Optional[Callable] = None,
+            colorstr_transform: Optional[Callable] = None,
             seed: int=123,
             train: bool=True,
     ):
         super().__init__()
         self.data_root = Path(data_root)
         self.colors = [c.lower() for c in colors]
+        self.color2idx = {c:i for i,c in enumerate(self.colors)}
+        self.idx2color = {i:c for i,c in enumerate(self.colors)}
+
         for c in self.colors:
             assert c in ["gray", "red", "green", "blue"], "color must be one of gray, red, green, blue"
 
         # Extra transform that will be applied after the base transforms, ToTensor() and Monochromizer()
         self.transform = transform
         self.target_transform = target_transform
+        # By default, encode the color(str) to an integer color-label (ie. style class index)
+        self.colorstr_transform = colorstr_transform or transforms.Lambda(lambda color_name: self.color2idx[color_name])
         self.seed = seed
         self.train = train
         self.mode = 'train' if self.train else 'test'
@@ -104,10 +111,11 @@ class MultiMonoMNIST(Dataset):
         dsets = []
         for color in colors:
             ds = MonoMNIST(data_root=self.data_root,
-                              color=color,
-                              transform=self.transform,
-                              target_transform=self.target_transform,
-                              train=self.train)
+                          color=color,
+                          transform=self.transform,
+                          target_transform=self.target_transform,
+                          colorstr_transform=self.colorstr_transform,
+                          train=self.train)
             dsets.append(ds)
         return dsets
 
@@ -123,4 +131,5 @@ class MultiMonoMNIST(Dataset):
             colors_str='-'.join(self.colors),
             seed=self.seed
         )
+
 
