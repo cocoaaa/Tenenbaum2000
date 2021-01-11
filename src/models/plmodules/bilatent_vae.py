@@ -4,6 +4,7 @@ from argparse import ArgumentParser
 import numpy as np
 import torch
 from torch import nn
+from torch import optim
 from torch.nn import functional as F
 import pytorch_lightning as pl
 from pytorch_lightning.core.lightning import LightningModule
@@ -515,7 +516,16 @@ class BiVAE(BaseVAE):
 
     def configure_optimizers(self):
         #TODO: ADD optimizer for discriminator
-        return torch.optim.Adam(self.parameters(), lr=self.hparams.get("learning_rate"))
+        optimizer = optim.Adam(self.parameters(), lr=self.learning_rate)
+        lr_scheduler = {
+            'scheduler': optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                         mode='min',
+                                                         patience=10,
+                                                         verbose=True),
+            'name': "mySGD",
+        }
+
+        return [optimizer], [lr_scheduler]
 
     @staticmethod
     def add_model_specific_args(parent_parser):
