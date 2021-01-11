@@ -54,6 +54,8 @@ from src.data.datamodules import MultiMonoMNISTDataModule
 # callbacks
 from src.callbacks.recon_logger import ReconLogger
 from src.callbacks.hist_logger import  HistogramLogger
+from pytorch_lightning.callbacks import LearningRateMonitor
+
 
 # src helpers
 from src.utils.misc import info
@@ -218,11 +220,12 @@ if __name__ == '__main__':
     if not log_dir.exists():
         log_dir.mkdir(parents=True)
         print("Created: ", log_dir)
-    # callbacks = [
-    #     HistogramLogger(hist_epoch_interval=args.hist_epoch_interval),
-    #     ReconLogger(recon_epoch_interval=args.recon_epoch_interval),
-    #     #         EarlyStopping('val_loss', patience=10),
-    # ]
+    callbacks = [
+        LearningRateMonitor(logging_interval='epoch')
+        # HistogramLogger(hist_epoch_interval=args.hist_epoch_interval),
+        # ReconLogger(recon_epoch_interval=args.recon_epoch_interval),
+        #         EarlyStopping('val_loss', patience=10),
+    ]
 
     overwrites = {
         'gpus':1,
@@ -230,7 +233,7 @@ if __name__ == '__main__':
         'terminate_on_nan':True,
         'check_val_every_n_epoch':10,
         'logger': tb_logger,
-        # 'callbacks': callbacks
+        'callbacks': callbacks
     }
 
     # Init. trainer
