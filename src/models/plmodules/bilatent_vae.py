@@ -338,7 +338,7 @@ class BiVAE(BaseVAE):
         :param mode: (str) one of "train", "val", "test"
         :param kwargs:
             eg. has a key "kld_weight" to multiply the (negative) kl-divergence
-        :return:
+        :return: loss_dict
         """
 
         # Uppack the batch into a batch of img, content_labels, style_labels
@@ -440,22 +440,31 @@ class BiVAE(BaseVAE):
         backprop.
         """
         x = batch['img']
-        # c_label = batch['digit'] # digit/content label (int) -- currently not used
+        # label_c = batch['digit'] # digit/content label (int) -- currently not used
         label_s = batch['color'] # color/style label (int) -- used for adversarial loss_s
         out_dict = self(x)
         loss_dict = self.loss_function(out_dict, batch, mode="train")
         # breakpoint()
 
         # Log using tensorboard logger
-        # For scalar metrics, self.log will do
-        self.log('train/loss', loss_dict["loss"], on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        # Update and log the style_acc metric
-        score_s = loss_dict.pop("score_s").detach().clone() # we don't want to compute metric on the loss computational graph
-        train_acc = self.train_style_acc(score_s, label_s)
-        self.log('train/style_acc', self.train_style_acc, on_step=True, on_epoch=True)
+        #-- for scalar metrics, self.log will do
+        self.log('train/loss', loss_dict["loss"]) # Default: on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        #-- log each component of the loss
+        self.log('train/vae_loss', loss_dict["vae_loss"])
+        self.log('train/recon_loss', loss_dict["recon_loss"])
+        self.log('train/kld', loss_dict["kld"])
 
-        return {'loss': loss_dict["loss"],
-                'log': loss_dict}
+        self.log('train/adv_loss', loss_dict["adv_loss"])
+        self.log('train/adv_loss_s', loss_dict["adv_loss_s"])
+        if self.is_contrasive:
+            self.log('train/adv_loss_c', loss_dict["adv_loss_c"])
+
+        #-- update and log the style_acc metric
+        score_s = loss_dict.pop("score_s").detach().clone() # we don't want to compute metric on the loss computational graph
+        self.train_style_acc(score_s, label_s)
+        self.log('train/style_acc', self.train_style_acc)# Note: we pass in the Metric object, rather than the value tensor
+
+        return {'loss': loss_dict["loss"]}
 
 
     def validation_step(self, batch, batch_ids):
@@ -466,15 +475,27 @@ class BiVAE(BaseVAE):
         loss_dict = self.loss_function(out_dict, batch, mode="val")
 
         # Log the validation loss
-        self.log('val/loss', loss_dict["loss"], on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val/loss', loss_dict["loss"])
+        # Optionally, log each component of the loss
+        # -- for scalar metrics, self.log will do
+        self.log('val/loss', loss_dict["loss"])  # Default: on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        # -- log each component of the loss
+        self.log('val/vae_loss', loss_dict["vae_loss"])
+        self.log('val/recon_loss', loss_dict["recon_loss"])
+        self.log('val/kld', loss_dict["kld"])
+
+        self.log('val/adv_loss', loss_dict["adv_loss"])
+        self.log('val/adv_loss_s', loss_dict["adv_loss_s"])
+        if self.is_contrasive:
+            self.log('val/adv_loss_c', loss_dict["adv_loss_c"])
 
         # Update and log val_style_acc metric
         score_s = loss_dict.pop('score_s').detach().clone()
         self.val_style_acc(score_s, label_s)
-        self.log('val/style_acc', self.val_style_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val/style_acc', self.val_style_acc)
 
-        return {"val_loss": loss_dict["loss"],
-                'log': loss_dict}
+        return {"val_loss": loss_dict["loss"]}
+
 
     def test_step(self, batch, batch_idx):
         x = batch['img']
@@ -483,15 +504,14 @@ class BiVAE(BaseVAE):
         out_dict = self(x)
         loss_dict = self.loss_function(out_dict, x.detach().clone(), mode="test")
 
-        self.log('test/loss', loss_dict["loss"], prog_bar=True, logger=True)
+        self.log('test/loss', loss_dict["loss"])
 
         # Update and log test_style_acc metric
         score_s = loss_dict.pop('score_s').detach().clone()
         self.test_style_acc(score_s, label_s)
-        self.log('test/style_acc', self.test_style_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('test/style_acc', self.test_style_acc, on_step=False, on_epoch=True)
 
-        return {"val_loss": loss_dict["loss"],
-                'log': loss_dict}
+        return {"test_loss": loss_dict["loss"]}
 
     def configure_optimizers(self):
         #TODO: ADD optimizer for discriminator
