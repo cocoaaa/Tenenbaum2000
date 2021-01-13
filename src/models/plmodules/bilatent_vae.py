@@ -522,7 +522,8 @@ class BiVAE(BaseVAE):
                                                          mode='min',
                                                          patience=10,
                                                          verbose=True),
-            'name': "mySGD",
+            'monitor': 'val_loss',
+            'name': "train/lr/mySGD",
         }
 
         return [optimizer], [lr_scheduler]
@@ -542,7 +543,12 @@ class BiVAE(BaseVAE):
 
         parser.add_argument('--act_fn', type=str, default="leaky_relu")
         # Specific to BiVAE
-        parser.add_argument('--is_contrasive', type=bool, default=True)
+        # Add boolean argument switches: https://stackoverflow.com/a/31347222
+        group = parser.add_mutually_exclusive_group(required=False)
+        group.add_argument('--is_contrasive', dest='is_contrasive', action='store_true')
+        group.add_argument('--not_contrasive', dest='is_contrasive', action='store_false')
+        parser.set_defaults(is_contrasive=True)
+
         parser.add_argument('--kld_weight', type=float, default="1.0")
 
         return parser
