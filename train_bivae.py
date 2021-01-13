@@ -139,6 +139,7 @@ def instantiate_dm(args):
 def instantiate_model(args):
     act_fn = get_act_fn(args.act_fn)
 
+    # Base init kwargs
     kwargs = {
         'in_shape': args.in_shape, #dm.size()
         'latent_dim': args.latent_dim,
@@ -150,6 +151,8 @@ def instantiate_model(args):
     model_name = args.model_name
     model_class = get_model_class(model_name)
 
+    # Specify extra kwargs for each model class
+    # Add one for new model here
     if model_name == 'iwae':
         kwargs['n_samples'] = args.n_samples
 
@@ -162,6 +165,7 @@ def instantiate_model(args):
             "adv_loss_weight": args.adv_loss_weight,
         }
         kwargs.update(extra_kw)
+
     return model_class(**kwargs)
 
 
