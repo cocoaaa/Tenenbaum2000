@@ -10,7 +10,7 @@ Optional args: (partial)
     --hidden_dims: eg. --hidden_dims 32 64 128 256 (which is default)
 
 Hyperparameter space:
-- latent_dim = [10]
+- latent_dim = [16, 32, 63, 128]
 - is_contrasive =  [False, True]
 - adv_loss_weight = [5, 15, 45, 135, 405, 1215]
 - batch_size = [32, 64, 128, 256, 514, 1028]
@@ -23,8 +23,8 @@ To run: (at the root of the project, ie. /data/hayley-old/Tenanbaum2000
  nohup python tune_hparams_bivae.py --model_name="bivae" \
 --latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 --adv_weight 15.0 \
 --data_name="multi_mono_mnist" --colors red green blue --n_styles=3 \
---gpu_id=1 --max_epochs=200 --batch_size=128 -lr 1e-3  --terminate_on_nan=True  \
---log_root="./lightning_logs/2021-01-12-ray/" &
+--gpu_id=2 --max_epochs=300 --batch_size=128 -lr 1e-3  --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-13-ray/" &
 
 # View the Ray dashboard at http://127.0.0.1:8265
 # Run this at  local terminal:
@@ -210,7 +210,8 @@ def set_hparam_and_train_closure(overwrites: Dict[str, Any]):
     # Specify logger and callbacks
     exp_name = f'{model.name}_{dm.name}'
     print('Exp name: ', exp_name)
-    tb_logger = pl_loggers.TensorBoardLogger(save_dir=args.log_root,
+    log_root = Path(args.log_root).absolute()
+    tb_logger = pl_loggers.TensorBoardLogger(save_dir=log_root,
                                              name=exp_name,
                                              default_hp_metric=False,
                                              )
@@ -301,7 +302,8 @@ if __name__ == '__main__':
     parser.add_argument("--data_name", type=str, required=True)
     parser.add_argument("--mode", type=str, default='fit', help="fit or test")
     parser.add_argument("--log_root", type=str, default='./lightning_logs', help='root directory to save lightning logs')
-    parser.add_argument("--gpu_id", type=str, required=True, help="ID of GPU to use")
+    parser.add_argument("--gpu_ids", type=str, required=True, nargs='*',
+                        help="GPU ID(s) to use") #Returns an empty list if not specified
 
     # Callback args
     # parser.add_argument("--hist_epoch_interval", type=int, default=10, help="Epoch interval to plot histogram of q's parameter")
@@ -330,9 +332,11 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------------
     # Select Visible GPU
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
+    os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(args.gpu_ids)
 
-
+    print("===GPUs===")
+    print(os.environ["CUDA_VISIBLE_DEVICES"])
+    breakpoint()
     def set_hparam_and_train_closure(config: Dict[str, Any]):
         """
         Use the (k,v) in `overwrite` to update the args
@@ -446,7 +450,7 @@ if __name__ == '__main__':
     # Specify hyperparameter search space
     # ------------------------------------------------------------------------
     search_space = {
-        "latent_dim": 10,
+        "latent_dim": tune.grid_search([16, 32, 64,128]),
         'is_contrasive': tune.grid_search([False, True]),
         'adv_loss_weight': tune.grid_search([5., 15., 45., 135., 405., 1215.]),
         'learning_rate': tune.grid_search(list(np.logspace(-4., -1, num=10))),
