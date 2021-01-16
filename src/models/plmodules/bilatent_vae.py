@@ -357,8 +357,9 @@ class BiVAE(BaseVAE):
         mu_x_pred = out_dict["mu_x_pred"]
 
         # Monitor kld of each latent subspace to see how the content/style latent's KLD's changes individually
-        kld_c = compute_kld(mu_qc, logvar_qc)
-        kld_s = compute_kld(mu_qs, logvar_qs)
+        with torch.no_grad():
+            kld_c = compute_kld(mu_qc, logvar_qc)
+            kld_s = compute_kld(mu_qs, logvar_qs)
 
         # Combine mu_qc and mu_qs. Same for logvars
         mu_z = self.combine_content_style({"c": mu_qc, "s": mu_qs})
@@ -366,9 +367,8 @@ class BiVAE(BaseVAE):
 
         # Compute losses
         recon_loss = F.mse_loss(mu_x_pred, target_x, reduction='mean', size_average=self.size_average) # see https://github.com/pytorch/examples/commit/963f7d1777cd20af3be30df40633356ba82a6b0c
-        kld = torch.mean(-0.5 * torch.sum(1 + logvar_z - mu_z ** 2 - logvar_z.exp(), dim = 1), dim = 0)
-        kld_debug = compute_kld(mu_z, logvar_z)
-        # assert torch.equal(kld, kld_debug)
+        # kld = torch.mean(-0.5 * torch.sum(1 + logvar_z - mu_z ** 2 - logvar_z.exp(), dim = 1), dim = 0)
+        kld = compute_kld(mu_z, logvar_z)
         vae_loss = recon_loss + self.kld_weight * kld
 
         # Compute adversarial loss
