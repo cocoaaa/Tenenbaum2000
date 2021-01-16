@@ -12,6 +12,7 @@ from pytorch_lightning.metrics import Accuracy
 
 from pprint import pprint
 from .base import BaseVAE
+from .utils import  compute_kld
 
 class BiVAE(BaseVAE):
     def __init__(self, *,
@@ -66,7 +67,7 @@ class BiVAE(BaseVAE):
         self.learning_rate = learning_rate
         self.size_average = size_average
         self.hidden_dims = hidden_dims or [32, 64, 128, 256]#, 512]
-        self.adversary_dims = adversary_dims or  [100, 50, 25]
+        self.adversary_dims = adversary_dims or  [32, 32, 32]
         # Loss
         self.is_contrasive = is_contrasive
         self.kld_weight = kld_weight
@@ -93,7 +94,7 @@ class BiVAE(BaseVAE):
 
         self.encoder = nn.Sequential(*modules)
         self.len_flatten = self.hidden_dims[-1] * self.last_h * self.last_w
-        self.fc_flatten2qparams = nn.Linear(self.len_flatten, 2*self.content_dim+2*self.style_dim) # mu_qc, std_qc, mu_qs, std_qs (both c, s have the same dim, ie. `latent_dim`)
+        self.fc_flatten2qparams = nn.Linear(self.len_flatten, 2*self.content_dim+2*self.style_dim) # mu_qc, std_qc, mu_qs, std_qs (both c, s have the same dim)
 
 
         # Build Decoder
@@ -355,14 +356,19 @@ class BiVAE(BaseVAE):
         # output of decoder
         mu_x_pred = out_dict["mu_x_pred"]
 
+        # Monitor kld of each latent subspace to see how the content/style latent's KLD's changes individually
+        kld_c = compute_kld(mu_qc, logvar_qc)
+        kld_s = compute_kld(mu_qs, logvar_qs)
+
         # Combine mu_qc and mu_qs. Same for logvars
         mu_z = self.combine_content_style({"c": mu_qc, "s": mu_qs})
         logvar_z = self.combine_content_style({"c": logvar_qc, "s": logvar_qs})
-        # TODO: Also see how the content/style latent's KLD's changes individually?
 
         # Compute losses
         recon_loss = F.mse_loss(mu_x_pred, target_x, reduction='mean', size_average=self.size_average) # see https://github.com/pytorch/examples/commit/963f7d1777cd20af3be30df40633356ba82a6b0c
         kld = torch.mean(-0.5 * torch.sum(1 + logvar_z - mu_z ** 2 - logvar_z.exp(), dim = 1), dim = 0)
+        kld_debug = compute_kld(mu_z, logvar_z)
+        # assert torch.equal(kld, kld_debug)
         vae_loss = recon_loss + self.kld_weight * kld
 
         # Compute adversarial loss
@@ -381,6 +387,8 @@ class BiVAE(BaseVAE):
         loss = vae_loss + self.adv_loss_weight * adv_loss
 
         loss_dict = {
+            "kld_c": kld_c,
+            "kld_s": kld_s,
              'recon_loss': recon_loss,
              'kld': kld,
             'vae_loss': vae_loss,
@@ -454,6 +462,8 @@ class BiVAE(BaseVAE):
         self.log('train/vae_loss', loss_dict["vae_loss"])
         self.log('train/recon_loss', loss_dict["recon_loss"])
         self.log('train/kld', loss_dict["kld"])
+        self.log('train/kld_c', loss_dict["kld_c"])
+        self.log('train/kld_s', loss_dict["kld_s"])
 
         self.log('train/adv_loss', loss_dict["adv_loss"])
         self.log('train/adv_loss_s', loss_dict["adv_loss_s"])
@@ -484,6 +494,8 @@ class BiVAE(BaseVAE):
         self.log('val/vae_loss', loss_dict["vae_loss"])
         self.log('val/recon_loss', loss_dict["recon_loss"])
         self.log('val/kld', loss_dict["kld"])
+        self.log('val/kld_c', loss_dict["kld_c"])
+        self.log('val/kld_s', loss_dict["kld_s"])
 
         self.log('val/adv_loss', loss_dict["adv_loss"])
         self.log('val/adv_loss_s', loss_dict["adv_loss_s"])
@@ -552,3 +564,27 @@ class BiVAE(BaseVAE):
         parser.add_argument('--kld_weight', type=float, default="1.0")
 
         return parser
+
+class Encoder(nn.Module):
+    """
+    Input of (BS, C, H, W); Outputs (BS, *out_shape)
+    - Each layer is implemented as a conv-block, conv2D -> (BN2D) -> out_fn (eg. ReLU)
+
+    Args:
+        -
+    """
+    def __init__(self):
+        super().__init__()
+        # self.convs =
+
+class Decoder(nn.Module):
+    pass
+
+class Adversary(nn.Module):
+    pass
+
+class FCAdversary(Adversary):
+    pass
+
+class CNNAdversary(Adversary):
+    pass

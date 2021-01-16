@@ -232,8 +232,8 @@ if __name__ == '__main__':
     ]
 
     overwrites = {
-        'gpus':1,
-         'progress_bar_refresh_rate':20,
+        'gpus':1, #use a single gpu
+         'progress_bar_refresh_rate':0, # don't print out progress bar
         'terminate_on_nan':True,
         'check_val_every_n_epoch':10,
         'logger': tb_logger,
