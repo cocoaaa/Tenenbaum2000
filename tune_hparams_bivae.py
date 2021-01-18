@@ -298,7 +298,7 @@ if __name__ == '__main__':
                                            log_tag=args.beta_log_tag))
 
         overwrites = {
-            'gpus': 1,
+            'gpus': 1, # use a single gpu
             'progress_bar_refresh_rate': 0, # don't print out progress bar
             'terminate_on_nan': True,
             'check_val_every_n_epoch': 10,
@@ -366,10 +366,20 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------------
     # Specify hyperparameter search space
     # ------------------------------------------------------------------------
+    # search_space = {
+    #     "latent_dim": 20, #tune.grid_search([16, 32, 64,128]),
+    #     'is_contrasive': tune.grid_search([False, True]),
+    #     'adv_loss_weight': tune.grid_search([5., 15., 45., 135., 405., 1215.]),
+    #     'learning_rate': tune.grid_search(list(np.logspace(-4., -1, num=10))),
+    #     'batch_size': tune.grid_search([32, 64, 128, 256, 512, 1024]),
+    # }
     search_space = {
-        "latent_dim": 20, #tune.grid_search([16, 32, 64,128]),
+        "latent_dim": 10, #tune.grid_search([16, 32, 64,128]),
         'is_contrasive': tune.grid_search([False, True]),
+        'kld_weight': tune.grid_search([0., 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32., 64, 128., 256]),
+        'use_beta_scheduler': False,
         'adv_loss_weight': tune.grid_search([5., 15., 45., 135., 405., 1215.]),
+
         'learning_rate': tune.grid_search(list(np.logspace(-4., -1, num=10))),
         'batch_size': tune.grid_search([32, 64, 128, 256, 512, 1024]),
     }
