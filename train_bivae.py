@@ -55,11 +55,13 @@ from src.data.datamodules import MultiMonoMNISTDataModule
 from src.callbacks.recon_logger import ReconLogger
 from src.callbacks.hist_logger import  HistogramLogger
 from pytorch_lightning.callbacks import LearningRateMonitor
+from src.callbacks.beta_scheduler import BetaScheduler
 
 
 # src helpers
 from src.utils.misc import info
 from src.models.model_wrapper import ModelWrapper
+from src.utils.misc import info, n_iter_per_epoch
 
 
 def get_act_fn(fn_name:str) -> Callable:
@@ -198,6 +200,8 @@ if __name__ == '__main__':
     parser = model_class.add_model_specific_args(parser)
     parser = dm_class.add_model_specific_args(parser)
     parser = pl.Trainer.add_argparse_args(parser)
+    # Callback switch args
+    parser = BetaScheduler.add_argparse_args(parser)
 
     args = parser.parse_args()
     print("Final args: ")
@@ -211,9 +215,10 @@ if __name__ == '__main__':
 
     # Init. datamodule and model
     dm = instantiate_dm(args)
+    dm.setup('fit')
     model = instantiate_model(args)
 
-    # Specify logger and callbacks
+    # Specify logger
     exp_name = f'{model.name}_{dm.name}'
     print('Exp name: ', exp_name)
     tb_logger = pl_loggers.TensorBoardLogger(save_dir=args.log_root,
@@ -224,12 +229,23 @@ if __name__ == '__main__':
     if not log_dir.exists():
         log_dir.mkdir(parents=True)
         print("Created: ", log_dir)
+
+    # Specify callbacks
     callbacks = [
         LearningRateMonitor(logging_interval='epoch')
         # HistogramLogger(hist_epoch_interval=args.hist_epoch_interval),
         # ReconLogger(recon_epoch_interval=args.recon_epoch_interval),
         #         EarlyStopping('val_loss', patience=10),
     ]
+    if args.use_beta_scheduler:
+        # n_epoch
+        max_iters = n_iter_per_epoch(dm.train_dataloader()) * args.max_epochs
+        callbacks.append(BetaScheduler(max_iters,
+                                       start=args.beta_start,
+                                       stop=args.beta_stop,
+                                       n_cycle=args.beta_n_cycle,
+                                       ratio=args.beta_ratio,
+                                       log_tag=args.beta_log_tag))
 
     overwrites = {
         'gpus':1, #use a single gpu
