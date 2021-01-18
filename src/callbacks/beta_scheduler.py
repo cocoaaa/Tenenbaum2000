@@ -29,7 +29,7 @@ class BetaScheduler(Callback):
         group = parser.add_mutually_exclusive_group(required=False)
         group.add_argument('--use_beta_scheduler', dest='use_beta_scheduler', action='store_true')
         group.add_argument('--not_use_beta_scheduler', dest='use_beta_scheduler', action='store_false')
-        parser.set_defaults(use_beta_schedulere=True)
+        parser.set_defaults(use_beta_scheduler=True)
 
         parser.add_argument('--beta_start', type=float, default=0.0)
         parser.add_argument('--beta_stop', type=float, default=1.0)
