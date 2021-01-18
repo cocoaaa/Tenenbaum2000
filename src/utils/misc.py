@@ -1,5 +1,6 @@
 import inspect
 from datetime import datetime
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy as sp
@@ -7,10 +8,10 @@ from skimage.color import rgb2gray
 from skimage.transform import resize
 
 from pprint import pprint
+from torch.utils.data import DataLoader
 from pathlib import Path
 from typing import List, Set, Dict, Tuple, Optional, Iterable, Mapping, Union, Callable
 import warnings
-from ipdb import set_trace
 
 def now2str():
     now = datetime.now()
@@ -91,3 +92,12 @@ def get_next_version_path(save_dir: Union[Path, str], name: str):
         next_version = max(existing_versions) + 1
 
     return root_dir / f"version_{next_version}"
+
+def n_iter_per_epoch(dl:DataLoader):
+    n_iter = len(dl.dataset)/dl.batch_size
+    if n_iter == int(n_iter):
+        return int(n_iter)
+    elif dl.drop_last:
+        return math.floor(n_iter)
+    else:
+        return math.ceil(n_iter)
