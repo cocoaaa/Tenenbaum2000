@@ -6,9 +6,9 @@ from torchvision import transforms, datasets
 from torch.utils.data import Dataset, DataLoader, random_split
 import torch
 from src.data.transforms.transforms import  Monochromizer
+from .two_factor_dataset import TwoFactorDataset
 
-
-class MonoMNIST(Dataset):
+class MonoMNIST(TwoFactorDataset):
     """
     - data_root: root dir that contains "mnist_{color}.pkl" files
     - color: str; one of "red", "green", "blue"
@@ -19,13 +19,15 @@ class MonoMNIST(Dataset):
     - seed
     - use_train_dataset
 
-    Eg.
+    Example
+    -------
     - data_root: Path('/data/hayley-old/Tenanbaum2000/data/Mono-MNIST/')
         - mnist_data_root: data_root.parent
-
     """
     _fn_formatspec = "{mode}_mnist_{color}_seed-{seed}.pkl"
     _base_xform = transforms.ToTensor()
+    _keys = ["img", "digit", "color"] # keys of the item(a dictionary) returned by __getitem__
+
     def __init__(
             self,
             data_root: Union[Path, str],
@@ -70,10 +72,12 @@ class MonoMNIST(Dataset):
 
     def __getitem__(self, index: int) -> Dict[str,Any]:
         """
-        Args:
+        Parameters
+        ----------
             index (int): Index
 
-        Returns:
+        Returns
+        -------
             Dict: {
                 "img": pil_image,
                 "digit": target,
@@ -103,6 +107,9 @@ class MonoMNIST(Dataset):
 
     def __len__(self) -> int:
         return len(self.data)
+
+    def keys(self) -> List[str]:
+        return self._keys
 
     @property
     def name(self) -> str:
@@ -189,6 +196,23 @@ class MonoMNIST(Dataset):
 
             joblib.dump(XY(color), out_fn)
             print("Saved: ", out_fn)
+
+    @classmethod
+    def unpack(self, batch: Dict[str, Any]) -> Tuple[Any]:
+        """Unpacks a batch as a dictionary to a tuple of (data_x, content_label, style_label),
+        so that the dataloading implementation is similar to standard torch's dataset objects
+
+        Parameters
+        ----------
+        batch : Dict[str,Any]
+            a sample from the dataset returned by self.__getitem__(), containing the data("x"),
+            content-label and style-label
+
+        Returns
+        -------
+        a tuple of the data, its content label and its style label
+        """
+        return (batch["img"], batch["digit"], batch["color"])
 
     @staticmethod
     def dict_imgs2tuple_xy(dict_imgs: Dict[int, List],
