@@ -243,11 +243,10 @@ if __name__ == '__main__':
     print(os.environ["CUDA_VISIBLE_DEVICES"])
     # breakpoint()
 
-    def set_hparam_and_train_closure(config: Dict[str, Any]):
+    def set_hparam_and_train_closure(config: Dict[str, Any]) -> None:
         """
-        Use the (k,v) in `overwrite` to update the args
-        :param args: Namespace or Dict
-        :param config: Hyperparam search space as a Dict[hparam-name, value of the hpamram]
+        Use the (k,v) in `config` to update the args
+        :param config: Hyperparam search space as a Dict[hparam-name, value of the hpamram]. Eg:
             - latent_dim: int
             - is_contrasive: bool
             - batch_size: int
@@ -262,7 +261,7 @@ if __name__ == '__main__':
         d_args =  vars(args)
         for k, v in config.items():
             d_args[k] = v
-            print("Overwrote args: ", k)
+            print("Overwrote CLI args: ", k)
 
         # If kl_weight annealing is used,
         # the BetaScheduler's beta_step (ie. max_beta) will be set to the value of the kl_weight currently being searched
@@ -304,7 +303,7 @@ if __name__ == '__main__':
                                            ratio=args.beta_ratio,
                                            log_tag=args.beta_log_tag))
 
-        overwrites = {
+        trainer_overwrites = {
             'gpus': 1, # use a single gpu
             'progress_bar_refresh_rate': 0, # don't print out progress bar
             'terminate_on_nan': True,
@@ -314,7 +313,7 @@ if __name__ == '__main__':
         }
 
         # Init. trainer
-        trainer = pl.Trainer.from_argparse_args(args, **overwrites)
+        trainer = pl.Trainer.from_argparse_args(args, **trainer_overwrites)
 
         # Log model's computational graph
         model_wrapper = ModelWrapper(model)
@@ -373,16 +372,9 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------------
     # Specify hyperparameter search space
     # ------------------------------------------------------------------------
-    # search_space = {
-    #     "latent_dim": 20, #tune.grid_search([16, 32, 64,128]),
-    #     'is_contrasive': tune.grid_search([False, True]),
-    #     'adv_loss_weight': tune.grid_search([5., 15., 45., 135., 405., 1215.]),
-    #     'learning_rate': tune.grid_search(list(np.logspace(-4., -1, num=10))),
-    #     'batch_size': tune.grid_search([32, 64, 128, 256, 512, 1024]),
-    # }
     search_space = {
-        "latent_dim": 10, #tune.grid_search([16, 32, 64,128]),
         'is_contrasive': tune.grid_search([False, True]),
+
         'kld_weight': tune.grid_search([0., 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32., 64, 128., 256]),
         'use_beta_scheduler': tune.grid_search([True, False]),
         'adv_loss_weight': tune.grid_search([5., 15., 45., 135., 405., 1215.]),
@@ -400,7 +392,7 @@ if __name__ == '__main__':
         set_hparam_and_train_closure,
         config=search_space,
         verbose=1,
-        name="Tune-BiVAE", # logging directory
+        name="Tune-loss-weights-BiVAE", # logging directory
         resources_per_trial={"cpu":16, "gpu": len(args.gpu_ids)},
     )
 
