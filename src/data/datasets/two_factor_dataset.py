@@ -30,9 +30,9 @@ from typing import List, Set, Any, Dict, Tuple
 from torch.utils.data import Dataset
 
 class TwoFactorDataset(Dataset):
-    """
 
-    """
+    _keys = None # Required : List[str]
+
     def __init__(self):
         super().__init__()
 
@@ -44,14 +44,16 @@ class TwoFactorDataset(Dataset):
         """
         raise NotImplementedError
 
-    def unpack(self, batch: Dict[str, Any]) -> Tuple[Any]:
-        raise NotImplementedError
-
-    def keys(self) -> List[str]:
+    @classmethod
+    def keys(cls) -> List[str]:
         """Returns a list of keys of an item (which is a dictionary) in the dataset
         """
-        raise NotImplementedError
+        # raise NotImplementedError
+        return cls._keys
 
+    @classmethod
+    def unpack(cls, batch: Dict[str, Any]) -> Tuple[Any]:
+        return [batch[k] for k in cls.keys()]
 
 
 
