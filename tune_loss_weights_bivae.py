@@ -32,13 +32,32 @@ To run: (at the root of the project, ie. /data/hayley-old/Tenanbaum2000
 nohup python tune_loss_weights_bivae.py --model_name="bivae" \
 --latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 \
 --data_name="multi_mono_mnist" --colors red green blue --n_styles=3 \
---gpu_id=2 --max_epochs=300   --terminate_on_nan=True  \
+--gpu_ids 2 --max_epochs=300   --terminate_on_nan=True  \
 --log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-16-ray/" &
 
-# View the Ray dashboard at http://127.0.0.1:8265
+Or, with MultiRotatedMNIST datamodule
+nohup python tune_loss_weights_bivae.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 \
+--data_name="multi_rotated_mnist" --angles -45 0 45 --n_styles=3 \
+--gpu_ids 1 --max_epochs=400   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-23-ray/" &
+
+
+Or, with MultiMaptiles Datamodule
+nohup python tune_loss_weights_bivae.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32  \
+--data_name="multi_maptiles" \
+--cities la paris \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=3 \
+--zooms 14 \
+--gpu_ids 1 2 --max_epochs=400   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-23-ray/" &
+
+
+# To see the hparam search progress:
+# view the Ray dashboard at http://127.0.0.1:8265
 # Run this at  local terminal:
 # ssh -NfL 8265:localhost:8265 arya
-
 """
 
 import os
@@ -51,12 +70,7 @@ import warnings
 from pprint import pprint
 
 import numpy as np
-import torch
-import torch.nn as nn
-
-import torchvision
 import pytorch_lightning as pl
-from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning import loggers as pl_loggers
 
 # Ray
@@ -66,17 +80,6 @@ from ray.tune import track
 
 # from hyperopt import hp
 # from ray.tune.suggest.hyperopt import HyperOptSearc
-
-# plmodules
-from src.models.plmodules.three_fcs import ThreeFCs
-from src.models.plmodules.vanilla_vae import VanillaVAE
-from src.models.plmodules.iwae import IWAE
-from src.models.plmodules.bilatent_vae import BiVAE
-
-# datamodules
-from src.data.datamodules.maptiles_datamodule import MaptilesDataModule
-from src.data.datamodules.mnist_datamodule import MNISTDataModule
-from src.data.datamodules import MultiMonoMNISTDataModule
 
 # callbacks
 from src.callbacks.recon_logger import ReconLogger
@@ -88,112 +91,9 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from src.utils.misc import info, n_iter_per_epoch
 from src.models.model_wrapper import ModelWrapper
 
-
-def get_act_fn(fn_name:str) -> Callable:
-    fn_name = fn_name.lower()
-    return {
-        'relu': nn.ReLU(),
-        'leaky_relu': nn.LeakyReLU(),
-    }[fn_name]
-
-
-def get_dm_class(dm_name:str) -> object:
-    dm_name = dm_name.lower()
-    return {
-        'mnist': MNISTDataModule,
-        'maptiles': MaptilesDataModule,
-        'multi_mono_mnist': MultiMonoMNISTDataModule,
-    }[dm_name]
-
-
-def get_model_class(model_name: str) -> object:
-    model_name = model_name.lower()
-    return {
-        "three_fcs": ThreeFCs,
-        "vae": VanillaVAE,
-        "iwae": IWAE,
-        "bivae": BiVAE,
-
-    }[model_name]
-
-
-def instantiate_dm(args):
-    data_name = args.data_name.lower()
-    data_root = Path(args.data_root)
-
-    if data_name == 'mnist':
-        kwargs = {
-            'data_root': data_root,
-            'in_shape': args.in_shape,
-            'batch_size': args.batch_size,
-            'verbose': args.verbose,
-            'pin_memory': args.pin_memory,
-            'num_workers': args.num_workers,
-        }
-        dm = MNISTDataModule(**kwargs)
-
-    elif data_name == 'maptiles':
-        kwargs = {
-            'data_root': data_root,
-            'cities': args.cities,
-            'styles': args.styles,
-            'zooms': args.zooms,
-            'in_shape': args.in_shape,
-            'batch_size': args.batch_size,
-            'verbose': args.verbose,
-            'pin_memory': args.pin_memory,
-            'num_workers': args.num_workers,
-        }
-        dm = MaptilesDataModule(**kwargs)
-    elif data_name == 'multi_mono_mnist':
-        kwargs = {
-            'data_root': args.data_root,
-            'colors': args.colors,
-            'seed': args.seed,
-            'in_shape': args.in_shape,
-            'batch_size': args.batch_size,
-            'verbose': args.verbose,
-            'pin_memory': args.pin_memory,
-            'num_workers': args.num_workers,
-        }
-        dm = MultiMonoMNISTDataModule(**kwargs)
-    else:
-        raise KeyError("Data name must be in ['mnist', 'maptiles']")
-
-    return dm
-
-
-def instantiate_model(args):
-    act_fn = get_act_fn(args.act_fn)
-
-    # Base init kwargs
-    kwargs = {
-        'in_shape': args.in_shape, #dm.size()
-        'latent_dim': args.latent_dim,
-        'hidden_dims': args.hidden_dims,
-        'act_fn': act_fn,
-        'learning_rate': args.learning_rate,
-        'verbose': args.verbose,
-    }
-    model_name = args.model_name
-    model_class = get_model_class(model_name)
-
-    # Specify extra kwargs for each model class
-    # Add one for new model here
-    if model_name == 'iwae':
-        kwargs['n_samples'] = args.n_samples
-
-    if model_name == 'bivae':
-        extra_kw = {
-            "n_styles": args.n_styles,
-            "adversary_dims": args.adversary_dims,
-            "is_contrasive": args.is_contrasive,
-            "kld_weight": args.kld_weight,
-            "adv_loss_weight": args.adv_loss_weight,
-        }
-        kwargs.update(extra_kw)
-
-    return model_class(**kwargs)
+# utils for instatiating a selected datamodule and a selected model
+from .utils import get_model_class, get_dm_class
+from .utils import instantiate_model, instantiate_dm
 
 
 if __name__ == '__main__':
@@ -205,7 +105,7 @@ if __name__ == '__main__':
     parser.add_argument("--data_name", type=str, required=True)
     parser.add_argument("--mode", type=str, default='fit', help="fit or test")
     parser.add_argument("--log_root", type=str, default='./lightning_logs', help='root directory to save lightning logs')
-    parser.add_argument("--gpu_ids", type=str, required=True, nargs='*',
+    parser.add_argument("--gpu_ids", nargs='+', type=str,
                         help="GPU ID(s) to use") #Returns an empty list if not specified
 
     # Callback args
@@ -229,9 +129,11 @@ if __name__ == '__main__':
     # Callback switch args
     parser = BetaScheduler.add_argparse_args(parser)
 
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
     print("Final args: ")
     pprint(args)
+    print("Final unknown :")
+    pprint(unknown)
     # ------------------------------------------------------------------------
     # Initialize model, datamodule, trainer using the parsered arg dict
     # ------------------------------------------------------------------------

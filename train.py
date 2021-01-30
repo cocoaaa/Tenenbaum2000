@@ -13,43 +13,78 @@ To run: (at the root of the project, ie. /data/hayley-old/Tenanbaum2000
 nohup python src/train.py --model_name="vae" --data_name="mnist" --latent_dim=10
 nohup python src/train.py --model_name="iwae" --data_name="mnist" --latent_dim=10
 
+Jan 23, 2021
+nohup python train.py --model_name="vae" --data_name="maptiles" --latent_dim=10 \
+--cities berlin rome \
+--styles StamenTonerBackground \
+--zooms 14 \
+--in_shape 1 64 64 \
+--batch_size 32 \
+--hidden_dims 32 32 64 64 128 \
+--gpu_id 2 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-23/" &
+
+
+
+nohup python train.py --model_name="vae" --data_name="maptiles" --latent_dim=10 \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' 'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles StamenTonerBackground \
+--zooms 14 \
+--in_shape 1 64 64 \
+--batch_size 32 \
+--hidden_dims 32 32 64 64 128 \
+--gpu_id 2 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-23/" &
+
+
+nohup python train.py --model_name="vae" --data_name="maptiles" --latent_dim=10 \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' 'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles StamenTonerBackground \
+--zooms 14 \
+--in_shape 1 64 64 \
+--batch_size 32 \
+--hidden_dims 32 64 64 64 128 \
+--gpu_id 2 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-23/" &
+
+
+nohup python train.py --model_name="vae" --data_name="maptiles" --latent_dim=10 \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' 'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles StamenTonerBackground \
+--zooms 14 \
+--in_shape 1 64 64 \
+--batch_size 32 \
+--hidden_dims 32 64 64 128 256 \
+--gpu_id 1 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-23/" &
+
+nohup python train.py --model_name="vae" --data_name="maptiles" --latent_dim=20 \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' 'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles StamenTonerBackground \
+--zooms 14 \
+--in_shape 1 64 64 \
+--batch_size 32 \
+--hidden_dims 32 64 64 128 256 \
+--gpu_id 1 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-23/" &
+
+
 """
 # Load libraries
 # In[2]:
 
 
 import os,sys
-import re
-import math
 from datetime import datetime
 import time
 from argparse import ArgumentParser
 from collections import OrderedDict
 from pathlib import Path
 from typing import List, Set, Dict, Tuple, Optional, Iterable, Mapping, Union, Callable, TypeVar
-import warnings
 from pprint import pprint
-from ipdb import set_trace as brpt
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-
-import torchvision
 
 import pytorch_lightning as pl
-from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning import loggers as pl_loggers
-
-# plmodules
-from src.models.plmodules.three_fcs import ThreeFCs
-from src.models.plmodules.vanilla_vae import VanillaVAE
-from src.models.plmodules.iwae import IWAE
-
-# datamodules
-from src.data.datamodules.maptiles_datamodule import MaptilesDataModule
-from src.data.datamodules.mnist_datamodule import MNISTDataModule
 
 # callbacks
 from src.callbacks.recon_logger import ReconLogger
@@ -59,82 +94,9 @@ from src.callbacks.hist_logger import  HistogramLogger
 from src.utils.misc import info
 from src.models.model_wrapper import ModelWrapper
 
-
-def get_act_fn(fn_name:str) -> Callable:
-    fn_name = fn_name.lower()
-    return {
-        'relu': nn.ReLU(),
-        'leaky_relu': nn.LeakyReLU(),
-    }[fn_name]
-
-def get_model_class(model_name: str) -> object:
-    model_name = model_name.lower()
-    return {
-        "three_fcs": ThreeFCs,
-        "vae": VanillaVAE,
-        "iwae": IWAE,
-    }[model_name]
-
-
-def get_dm_class(dm_name:str) -> object:
-    dm_name = dm_name.lower()
-    return {
-        'mnist': MNISTDataModule,
-        'maptiles': MaptilesDataModule
-    }[dm_name]
-
-def instantiate_dm(args):
-    data_name = args.data_name.lower()
-    data_root = Path(args.data_root)
-
-    if data_name == 'mnist':
-        kwargs = {
-            'data_root': data_root,
-            'in_shape': args.in_shape,
-            'batch_size': args.batch_size,
-            'verbose': args.verbose,
-            'pin_memory': args.pin_memory,
-            'num_workers': args.num_workers,
-        }
-        dm = MNISTDataModule(**kwargs)
-
-    elif data_name == 'maptiles':
-        kwargs = {
-            'data_root': data_root,
-            'cities': args.cities,
-            'styles': args.styles,
-            'zooms': args.zooms,
-            'in_shape': args.in_shape,
-            'batch_size': args.batch_size,
-            'verbose': args.verbose,
-            'pin_memory': args.pin_memory,
-            'num_workers': args.num_workers,
-        }
-        dm = MaptilesDataModule(**kwargs)
-    else:
-        raise KeyError("Data name must be in ['mnist', 'maptiles']")
-
-    return dm
-
-
-def instantiate_model(args):
-    act_fn = get_act_fn(args.act_fn)
-
-    kwargs = {
-        'in_shape': args.in_shape, #dm.size()
-        'latent_dim': args.latent_dim,
-        'hidden_dims': args.hidden_dims,
-        'act_fn': act_fn,
-        'learning_rate': args.learning_rate,
-        'verbose': args.verbose,
-    }
-    model_name = args.model_name
-    model_class = get_model_class(model_name)
-
-    if model_name == 'iwae':
-        kwargs['n_samples'] = args.n_samples
-
-    return model_class(**kwargs)
+# utils for instatiating a selected datamodule and a selected model
+from .utils import get_model_class, get_dm_class
+from .utils import instantiate_model, instantiate_dm
 
 
 if __name__ == '__main__':
@@ -179,6 +141,7 @@ if __name__ == '__main__':
 
     # Init. datamodule and model
     dm = instantiate_dm(args)
+    dm.setup('fit')
     model = instantiate_model(args)
 
     # Specify logger and callbacks
@@ -196,7 +159,7 @@ if __name__ == '__main__':
 
     overwrites = {
         'gpus':1,
-         'progress_bar_refresh_rate':20,
+         'progress_bar_refresh_rate':0,
         'terminate_on_nan':True,
         'check_val_every_n_epoch':10,
         'logger': tb_logger,
@@ -210,7 +173,6 @@ if __name__ == '__main__':
     model_wrapper = ModelWrapper(model)
     # tb_logger.experiment.add_graph(model_wrapper, model.)
     tb_logger.log_graph(model_wrapper)
-
 
     # ------------------------------------------------------------------------
     # Run the experiment

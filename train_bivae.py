@@ -1,26 +1,65 @@
-"""
-train_bivae.py
+"""train_bivae.py
+Train a single configuration of a model specified on a specified data
 
-Required args:
+Required CLI args
+-----------------
     --model_name: "vae" or "iwae"
     --data_name: "maptiles" or "mnist"
     --latent_dim: int, eg. 10
 
-Optional args: (partial)
+Optional CLI args: (partial)
+----------------------------
     --hidden_dims: eg. --hidden_dims 32 64 128 256 (which is default)
+
+Note
+----
+  Each model (specified by --model_name) and datamodule (specified by --data_name)
+expects a different set of arguments. For example, `bivae` models allow the following
+arguments:
+Required:
+--n_styles
+
+--adversary_dim
+--adv_loss_weight
+
 
 To run: (at the root of the project, ie. /data/hayley-old/Tenanbaum2000
 nohup python train_bivae.py --model_name="vae" --data_name="mnist" --latent_dim=10
 nohup python train_bivae.py --model_name="iwae" --data_name="mnist" --latent_dim=10
+
+# Train BiVAE on Multi Monochrome MNIST
 nohup python train_bivae.py --model_name="bivae" \
 --latent_dim=10 --hidden_dims 32 64  --adv_dim 32 32 -lr 1e-3 --adv_weight 15.0 \
 --data_name="multi_mono_mnist" --colors red green blue --n_styles=3 \
 --gpu_id=1
 
+
+# Train BiVAE on Multi Rotated MNIST
+nohup python train_bivae.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 \
+--data_name="multi_rotated_mnist" --angles -45 0 45 --n_styles=3 \
+--gpu_id=1
+
+nohup python train_bivae.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 \
+--data_name="multi_rotated_mnist" --angles -45 0 45 --n_styles=3 \
+--gpu_id=2 --max_epochs=400   --terminate_on_nan=True  \
+-lr 3e-4 --adv_weight 15.0 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-23/" &
+
+# Train BiVAE on Multi Maptiles MNIST
+nohup python train_bivae.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 --adv_weight 15.0 \
+--data_name="multi_maptiles" \
+--cities la paris \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=3 \
+--zooms 14 \
+--gpu_id=2 --max_epochs=400   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-23/" &
+
 """
 import os,sys
-import re
-import math
 from datetime import datetime
 import time
 from argparse import ArgumentParser
@@ -30,26 +69,9 @@ from typing import List, Set, Dict, Tuple, Optional, Iterable, Mapping, Union, C
 import warnings
 from pprint import pprint
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-
-import torchvision
 import pytorch_lightning as pl
-from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning import loggers as pl_loggers
 
-# plmodules
-from src.models.plmodules.three_fcs import ThreeFCs
-from src.models.plmodules.vanilla_vae import VanillaVAE
-from src.models.plmodules.iwae import IWAE
-from src.models.plmodules.bilatent_vae import BiVAE
-
-# datamodules
-from src.data.datamodules.maptiles_datamodule import MaptilesDataModule
-from src.data.datamodules.mnist_datamodule import MNISTDataModule
-from src.data.datamodules import MultiMonoMNISTDataModule
 
 # callbacks
 from src.callbacks.recon_logger import ReconLogger
@@ -57,137 +79,29 @@ from src.callbacks.hist_logger import  HistogramLogger
 from pytorch_lightning.callbacks import LearningRateMonitor
 from src.callbacks.beta_scheduler import BetaScheduler
 
-
 # src helpers
 from src.utils.misc import info
 from src.models.model_wrapper import ModelWrapper
 from src.utils.misc import info, n_iter_per_epoch
 
-
-def get_act_fn(fn_name:str) -> Callable:
-    fn_name = fn_name.lower()
-    return {
-        'relu': nn.ReLU(),
-        'leaky_relu': nn.LeakyReLU(),
-    }[fn_name]
-
-
-def get_dm_class(dm_name:str) -> object:
-    dm_name = dm_name.lower()
-    return {
-        'mnist': MNISTDataModule,
-        'maptiles': MaptilesDataModule,
-        'multi_mono_mnist': MultiMonoMNISTDataModule,
-    }[dm_name]
-
-
-def get_model_class(model_name: str) -> object:
-    model_name = model_name.lower()
-    return {
-        "three_fcs": ThreeFCs,
-        "vae": VanillaVAE,
-        "iwae": IWAE,
-        "bivae": BiVAE,
-
-    }[model_name]
-
-def instantiate_dm(args):
-    data_name = args.data_name.lower()
-    data_root = Path(args.data_root)
-
-    if data_name == 'mnist':
-        kwargs = {
-            'data_root': data_root,
-            'in_shape': args.in_shape,
-            'batch_size': args.batch_size,
-            'verbose': args.verbose,
-            'pin_memory': args.pin_memory,
-            'num_workers': args.num_workers,
-        }
-        dm = MNISTDataModule(**kwargs)
-
-    elif data_name == 'maptiles':
-        kwargs = {
-            'data_root': data_root,
-            'cities': args.cities,
-            'styles': args.styles,
-            'zooms': args.zooms,
-            'in_shape': args.in_shape,
-            'batch_size': args.batch_size,
-            'verbose': args.verbose,
-            'pin_memory': args.pin_memory,
-            'num_workers': args.num_workers,
-        }
-        dm = MaptilesDataModule(**kwargs)
-    elif data_name == 'multi_mono_mnist':
-        kwargs = {
-            'data_root': args.data_root,
-            'colors': args.colors,
-            'seed': args.seed,
-            'in_shape': args.in_shape,
-            'batch_size': args.batch_size,
-            'verbose': args.verbose,
-            'pin_memory': args.pin_memory,
-            'num_workers': args.num_workers,
-        }
-        dm = MultiMonoMNISTDataModule(**kwargs)
-    else:
-        raise KeyError("Data name must be in ['mnist', 'maptiles']")
-
-    return dm
-
-
-
-def instantiate_model(args):
-    act_fn = get_act_fn(args.act_fn)
-
-    # Base init kwargs
-    kwargs = {
-        'in_shape': args.in_shape, #dm.size()
-        'latent_dim': args.latent_dim,
-        'hidden_dims': args.hidden_dims,
-        'act_fn': act_fn,
-        'learning_rate': args.learning_rate,
-        'verbose': args.verbose,
-    }
-    model_name = args.model_name
-    model_class = get_model_class(model_name)
-
-    # Specify extra kwargs for each model class
-    # Add one for new model here
-    if model_name == 'iwae':
-        kwargs['n_samples'] = args.n_samples
-
-    if model_name == 'bivae':
-        extra_kw = {
-            "n_styles": args.n_styles,
-            "adversary_dims": args.adversary_dims,
-            "is_contrasive": args.is_contrasive,
-            "kld_weight": args.kld_weight,
-            "adv_loss_weight": args.adv_loss_weight,
-        }
-        kwargs.update(extra_kw)
-
-    return model_class(**kwargs)
+# utils for instatiating a selected datamodule and a selected model
+from .utils import get_model_class, get_dm_class
+from .utils import instantiate_model, instantiate_dm
 
 
 if __name__ == '__main__':
-
     parser = ArgumentParser()
-
     # Define general arguments for this CLI script for trianing/testing
     parser.add_argument("--model_name", type=str, required=True)
     parser.add_argument("--data_name", type=str, required=True)
+    parser.add_argument("--gpu_id", type=str, required=True, help="ID of GPU to use")
     parser.add_argument("--mode", type=str, default='fit', help="fit or test")
     parser.add_argument("--log_root", type=str, default='./lightning_logs', help='root directory to save lightning logs')
-    parser.add_argument("--gpu_id", type=str, required=True, help="ID of GPU to use")
 
     # Callback args
     # parser.add_argument("--hist_epoch_interval", type=int, default=10, help="Epoch interval to plot histogram of q's parameter")
     # parser.add_argument("--recon_epoch_interval", type=int, default=10, help="Epoch interval to plot reconstructions of train and val samples")
-
     parser.add_argument("-v", "--verbose", action="store_true", default=False)
-
     args, unknown = parser.parse_known_args()
     print("CLI args: ")
     pprint(args)
@@ -206,6 +120,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print("Final args: ")
     pprint(args)
+
     # ------------------------------------------------------------------------
     # Initialize model, datamodule, trainer using the parsered arg dict
     # ------------------------------------------------------------------------
@@ -238,7 +153,6 @@ if __name__ == '__main__':
         #         EarlyStopping('val_loss', patience=10),
     ]
     if args.use_beta_scheduler:
-        # n_epoch
         max_iters = n_iter_per_epoch(dm.train_dataloader()) * args.max_epochs
         callbacks.append(BetaScheduler(max_iters,
                                        start=args.beta_start,
@@ -247,9 +161,9 @@ if __name__ == '__main__':
                                        ratio=args.beta_ratio,
                                        log_tag=args.beta_log_tag))
 
-    overwrites = {
+    trainer_overwrites = {
         'gpus':1, #use a single gpu
-         'progress_bar_refresh_rate':0, # don't print out progress bar
+        'progress_bar_refresh_rate':0, # don't print out progress bar
         'terminate_on_nan':True,
         'check_val_every_n_epoch':10,
         'logger': tb_logger,
@@ -257,12 +171,13 @@ if __name__ == '__main__':
     }
 
     # Init. trainer
-    trainer = pl.Trainer.from_argparse_args(args, **overwrites)
+    trainer = pl.Trainer.from_argparse_args(args, **trainer_overwrites)
 
     # Log model's computational graph
     model_wrapper = ModelWrapper(model)
     # tb_logger.experiment.add_graph(model_wrapper, model.)
     tb_logger.log_graph(model_wrapper)
+
 
     # ------------------------------------------------------------------------
     # Run the experiment
