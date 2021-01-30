@@ -28,7 +28,7 @@ class IWAE(BaseVAE):
         :param hidden_dims:
         :param n_samples: number of latent codes to draw from q^{(n}) corresponding to the
         variational distribution of nth datapoint.
-        Note. If `num_zs=1`, IWAE is the same model as Vanilla VAE.
+            Note. If `n_samples==1`, IWAE is the same model as Vanilla VAE.
         :param act_fn: Default is LeakyReLU()
         :param learning_rate: initial learning rate. Default: 1e-3.
         :param size_average: bool; whether to average the recon_loss across the pixel dimension.
