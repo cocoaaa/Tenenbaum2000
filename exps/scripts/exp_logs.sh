@@ -350,6 +350,7 @@ nohup python tune_hparams_bivae.py --model_name="bivae" \
 # Train BiVAE-C
 # with Beta annealing scheduler
 # and KLD of the content/style latent subspace tracking
+# log_dir = '/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-16/BiVAE-C_MNIST-red-green-blue_seed-123/version_1'
 nohup python train_bivae.py --model_name="bivae" \
 --latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 --adv_weight 15.0  --is_contrasive \
 --data_name="multi_mono_mnist" --colors red green blue --n_styles=3 \
@@ -361,6 +362,7 @@ nohup python train_bivae.py --model_name="bivae" \
 # (and repeat the same evaluation on clutering based on style space and on whole z code
 # we set latent dim to be 4, so that each partition space can be visualized without any dimension-reduction
 # algorithm (eg. tSNE)
+# log_dir = '/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-16/BiVAE-C_MNIST-red-green-blue_seed-123/version_0'
 nohup python train_bivae.py --model_name="bivae" \
 --latent_dim=4 --hidden_dims 32 64 128 256 --adv_dim 32 32 --adv_weight 15.0  --is_contrasive \
 --data_name="multi_mono_mnist" --colors red green blue --n_styles=3 \
@@ -381,5 +383,98 @@ nohup python train_bivae.py --model_name="bivae" \
  --log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-16-ray/" &
 
 
+# 2021-1-18
+# Followup of 2021-1-16 Runs are using 32 32  adv_dim. Here we rerun the code with 32 32 32 for consistency with other exps
+# Train BiVAE-C
+# --with Beta annealing scheduler
+# --and KLD of the content/style latent subspace tracking
+# log_dir = '/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-18/BiVAE-C_MNIST-red-green-blue_seed-123/version_0'
+nohup python train_bivae.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 --adv_weight 15.0  --is_contrasive \
+--data_name="multi_mono_mnist" --colors red green blue --n_styles=3 \
+--gpu_id=1 --max_epochs=300 --batch_size=32 -lr 1e-3 --terminate_on_nan=True  \
+--use_beta_scheduler \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-18/" &
 
+# To visualize the clusters in content space vs. color-coding by style labels or by content labels
+# (and repeat the same evaluation on clutering based on style space and on whole z code
+# we set latent dim to be 4, so that each partition space can be visualized without any dimension-reduction
+# algorithm (eg. tSNE)
+# log_dir = '/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-18/BiVAE-C_MNIST-red-green-blue_seed-123/version_1'
+nohup python train_bivae.py --model_name="bivae" \
+--latent_dim=4 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 --adv_weight 15.0  --is_contrasive \
+--data_name="multi_mono_mnist" --colors red green blue --n_styles=3 \
+--gpu_id=1 --max_epochs=300 --batch_size=32 -lr 1e-3 --terminate_on_nan=True  \
+--use_beta_scheduler \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-18/" &
 
+# 2021-1-20
+# tune_loss_weights_bivae.py
+# Given a specific model architecture and a fixed-learning rate(?), search for the best balance of the loss
+# components.
+# Fixed latent_dim =10, and model acchitecture (hidden_dims, adv_dim)
+# And, the hparam search space is:
+# --is_contrasive
+# --kld_weight
+# --adv_weight
+# --use_beta_scheduler: if set to True, use the cyclic linear scheduler with the max_kld set to the `kld_weight`
+# --learning_rate
+# --batch_size
+ nohup python tune_loss_weights_bivae.py --model_name="bivae" \
+ --latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 \
+ --data_name="multi_mono_mnist" --colors red green blue --n_styles=3 \
+ --gpu_id=1 --max_epochs=300   --terminate_on_nan=True  \
+ --log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-20-ray/" &
+
+# Jan 23, 2021
+# Train BiVAE on Multi Rotated MNIST with angles = [-45, 0, 45]
+ nohup python train_bivae.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 \
+--data_name="multi_rotated_mnist" --angles -45 0 45 --n_styles=3 \
+--gpu_id=2 --max_epochs=400   --terminate_on_nan=True  \
+-lr 3e-4 --adv_weight 15.0 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-23/" &
+
+nohup python tune_loss_weights_bivae.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 \
+--data_name="multi_rotated_mnist" --angles -45 0 45 --n_styles=3 \
+--gpu_id=1 --max_epochs=400   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-23-ray/" &
+
+# Train BiVAE on Multi Maptiles with
+#data_root = Path("/data/hayley-old/maptiles_v2/")
+#cities = ['berlin', 'rome'] #['la', 'paris']
+#CartoVoyagerNoLabels", "StamenTonerBackground"
+#styles = ['OSMDefault', 'CartoVoyagerNoLabels']
+#styles = ["CartoVoyagerNoLabels", "StamenTonerBackground"]
+#zooms = ['14']
+#in_shape = (3,32,32)
+#batch_size = 32
+nohup python train_bivae.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 --adv_weight 15.0 \
+--data_name="multi_maptiles" \
+--cities la paris \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=3 \
+--zooms 14 \
+--gpu_id=2 --max_epochs=400   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-23/" &
+
+nohup python tune_loss_weights_bivae.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32  \
+--data_name="multi_maptiles" \
+--cities la paris \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=3 \
+--zooms 14 \
+--gpu_ids=2 --max_epochs=400   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-23-ray/" &
+
+#cities = ['berlin', 'rome']
+nohup python tune_loss_weights_bivae.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32  \
+--data_name="multi_maptiles" \
+--cities berlin rome \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=3 \
+--zooms 14 \
+--gpu_ids 1 2 --max_epochs=400   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-23-ray/" &
