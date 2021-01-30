@@ -93,6 +93,25 @@ def get_next_version_path(save_dir: Union[Path, str], name: str):
 
     return root_dir / f"version_{next_version}"
 
+
+def get_ckpt_path(log_dir: Path):
+    """Get the path to the ckpt file from the pytorch-lightning's log_dir of the model
+    Assume there is a single ckpt file under the .../<model_name>/<version_x>/checkpoints
+
+    Examples
+    --------
+    log_dir_root = Path("/data/hayley-old/Tenanbaum2000/lightning_logs")
+    log_dir = log_dir_root/ "2021-01-12-ray/BiVAE_MNIST-red-green-blue_seed-123/version_1"
+    ckpt_path = get_ckpt_path(log_dir)
+    # Use the ckpt_path to load the saved model
+    ckpt = pl_load(ckpt_path, map_location=lambda storage, loc: storage)  # dict object
+
+    """
+    ckpt_dir = log_dir / "checkpoints"
+    for p in ckpt_dir.iterdir():
+        return p
+
+
 def n_iter_per_epoch(dl:DataLoader):
     n_iter = len(dl.dataset)/dl.batch_size
     if n_iter == int(n_iter):
