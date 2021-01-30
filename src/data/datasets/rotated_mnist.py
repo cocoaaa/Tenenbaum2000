@@ -8,6 +8,7 @@ from .utils import get_mnist_data
 from .two_factor_dataset import TwoFactorDataset
 
 class RotatedMNIST(TwoFactorDataset):
+
     _fn_formatspec = "{mode}_mnist_{angle}"
     _keys = ['img', 'digit', 'angle']
 
@@ -18,13 +19,14 @@ class RotatedMNIST(TwoFactorDataset):
             transform: Optional[Callable] = None,
             digit_label_transform: Optional[Callable] = None,
             angle_label_transform: Optional[Callable] = None,
+            train: bool = True,
             download: bool = True,
-            train: bool = True
+
     ):
+        print("angle: ", angle, " , type: ", type(angle))
         super().__init__()
         self.data_root = Path(data_root)
         self.angle = angle
-
         self.transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Lambda(lambda timg: TF.rotate(timg, self.angle))
@@ -35,9 +37,9 @@ class RotatedMNIST(TwoFactorDataset):
         self.digit_label_transform = digit_label_transform  # input is int
         self.angle_label_transform = angle_label_transform  # input is float
 
-        self.download = download
         self.train = train
         self.mode = 'train' if self.train else 'test'
+        self.download = download
 
         self.data, self.digit_labels = get_mnist_data(self.data_root, self.train, self.download)
 
@@ -51,15 +53,12 @@ class RotatedMNIST(TwoFactorDataset):
         img, digit_label = self.data[index], int(self.digit_labels[index])
         angle_label = self.angle
         # img is a PIL image of mode L, shape (28,28)
-
         if self.transform is not None:
             img = self.transform(img)
         if self.digit_label_transform is not None:
             digit_label = self.digit_label_transform(digit_label)
         if self.angle_label_transform is not None:
-            angle_label = self.angle_label_transform(
-                angle_label)  # may be used for encoding domain label when used with other angles dataset
-
+            angle_label = self.angle_label_transform(angle_label)  # may be used for encoding domain label when used with other angles dataset
         return {"img": img,
                 "digit": digit_label,
                 "angle": angle_label}
