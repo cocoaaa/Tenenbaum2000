@@ -12,6 +12,8 @@ from src.visualize.utils import get_fig
 
 class MaptilesDataset(Dataset):
 
+    _name_formatspec = "Maptiles_{cities_str}_{styles_str}_{zooms_str}"
+
     def __init__(self, *,
                  data_root: Path,
                  cities: Iterable,
@@ -35,7 +37,7 @@ class MaptilesDataset(Dataset):
         :param verbose:
         """
         self.cities = cities
-        self.styles = styles
+        self.styles = sorted(styles)
         self.zooms = zooms
         self.n_channels = n_channels
         self.transform = transform
@@ -87,8 +89,15 @@ class MaptilesDataset(Dataset):
         return len(self.df_fns)
 
     def __repr__(self):
-        return f"Maptiles_{'-'.join(self.cities)}_{'-'.join(self.styles)}_{'-'.join(self.zooms)}"
+        return self.name
 
+    @property
+    def name(self) -> str:
+        return self._name_formatspec.format(
+            cities_str='-'.join(self.cities),
+            styles_str='-'.join(self.styles),
+            zooms_str='-'.join(self.zooms)
+        )
     def make_subset(self, inds: Iterable[int],
                     transform=None,
                     target_transform=None
@@ -229,9 +238,8 @@ class MaptilesDataset(Dataset):
                                     if fpath.is_file():
                                         rows.append([city, style, z, fpath])
 
-            # Construct a dataframe
-            df_counts = pd.DataFrame(rows, columns=['city', 'style', 'zoom', 'fpath'])
-
+        # Construct a dataframe
+        df_counts = pd.DataFrame(rows, columns=['city', 'style', 'zoom', 'fpath'])
         return df_counts
 
     @staticmethod
