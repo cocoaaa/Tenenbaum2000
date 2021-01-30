@@ -39,8 +39,6 @@ class BiVAE(BaseVAE):
         :param in_shape: model(x)'s input x's shape w/o batch dimension, in order of (c, h, w). Note no batch dimension.
         :param latent_dim:
         :param hidden_dims:
-        :param n_samples: number of latent codes to draw from q^{(n}) corresponding to the variational distribution of nth datapoint.
-            Note. If `num_zs=1`, IWAE is the same model as Vanilla VAE.
         :param act_fn: Default is LeakyReLU()
         :param learning_rate: initial learning rate. Default: 1e-3.
         :param size_average: bool; whether to average the recon_loss across the pixel dimension. Default: False
@@ -66,7 +64,7 @@ class BiVAE(BaseVAE):
         self.act_fn = act_fn
         self.learning_rate = learning_rate
         self.size_average = size_average
-        self.hidden_dims = hidden_dims or [32, 64, 128, 256]#, 512]
+        self.hidden_dims = hidden_dims or [32, 64, 128, 256, 512]
         self.adversary_dims = adversary_dims or  [32, 32, 32]
         # Loss
         self.is_contrasive = is_contrasive
@@ -344,9 +342,13 @@ class BiVAE(BaseVAE):
         """
 
         # Uppack the batch into a batch of img, content_labels, style_labels
-        target_x = batch['img'].detach().clone()
-        # label_c = batch['digit']  # digit/content label (int) -- currently not used
-        label_s = batch['color'].detach().clone()  # color/style label (int) -- used for adversarial loss_s
+        # target_x = batch['img'].detach().clone()
+        # # label_c = batch['digit']  # digit/content label (int) -- currently not used
+        # label_s = batch['color'].detach().clone()  # color/style label (int) -- used for adversarial loss_s
+        target_x, label_c, label_s = self.trainer.datamodule.unpack(batch)
+        target_x = target_x.detach().clone()
+        label_s = label_s.detach().clone()
+
 
         # qparams
         mu_qc, logvar_qc = out_dict["mu_qc"], out_dict["logvar_qc"]
@@ -372,11 +374,11 @@ class BiVAE(BaseVAE):
         vae_loss = recon_loss + self.kld_weight * kld
 
         # Compute adversarial loss
-        adv_loss_c = self.compute_loss_c(c) # loss from "negatives"
         #adv_loss_s = self.compute_loss_s(s, target_y) #loss from "positives"
         score_s = self.predict_y(s); #print("score_s: ", score_s.shape) #(bs, n_styles)
         adv_loss_s = nn.CrossEntropyLoss(reduction='mean')(score_s, label_s)  # estimated loss computed as averaged loss (over batch)
         if self.is_contrasive:
+            adv_loss_c = self.compute_loss_c(c)  # loss from "negatives"
             adv_loss = adv_loss_c + adv_loss_s
         else:
             adv_loss = adv_loss_s
@@ -448,9 +450,11 @@ class BiVAE(BaseVAE):
         `loss` is the last node of the model's computational graph, ie. starting node of
         backprop.
         """
-        x = batch['img']
-        # label_c = batch['digit'] # digit/content label (int) -- currently not used
-        label_s = batch['color'] # color/style label (int) -- used for adversarial loss_s
+        # x = batch['img']
+        # # label_c = batch['digit'] # digit/content label (int) -- currently not used
+        # label_s = batch['color'] # color/style label (int) -- used for adversarial loss_s
+
+        x, label_c, label_s = self.trainer.datamodule.unpack(batch) # "unpack" must be implemented in the DataModule class -- Jan 22, 2021
         out_dict = self(x)
         loss_dict = self.loss_function(out_dict, batch, mode="train")
         # breakpoint()
@@ -479,16 +483,14 @@ class BiVAE(BaseVAE):
 
 
     def validation_step(self, batch, batch_ids):
-        x = batch['img']
-        # label_c = batch['digit']  # digit/content label (int) -- currently not used
-        label_s = batch['color']  # color/style label (int) -- used for adversarial loss_s
+        # x = batch['img']
+        # # label_c = batch['digit']  # digit/content label (int) -- currently not used
+        # label_s = batch['color']  # color/style label (int) -- used for adversarial loss_s
+        x, label_c, label_s = self.trainer.datamodule.unpack(batch) # "unpack" must be implemented in the DataModule class -- Jan 22, 2021
         out_dict = self(x)
         loss_dict = self.loss_function(out_dict, batch, mode="val")
 
         # Log the validation loss
-        self.log('val/loss', loss_dict["loss"])
-        # Optionally, log each component of the loss
-        # -- for scalar metrics, self.log will do
         self.log('val/loss', loss_dict["loss"])  # Default: on_step=True, on_epoch=True, prog_bar=True, logger=True)
         # -- log each component of the loss
         self.log('val/vae_loss', loss_dict["vae_loss"])
@@ -511,9 +513,10 @@ class BiVAE(BaseVAE):
 
 
     def test_step(self, batch, batch_idx):
-        x = batch['img']
-        # label_c = batch['digit']  # digit/content label (int) -- currently not used
-        label_s = batch['color']  # color/style label (int) -- used for adversarial loss_s
+        # x = batch['img']
+        # # label_c = batch['digit']  # digit/content label (int) -- currently not used
+        # label_s = batch['color']  # color/style label (int) -- used for adversarial loss_s
+        x, label_c, label_s = self.trainer.datamodule.unpack(batch) # "unpack" must be implemented in the DataModule class -- Jan 22, 2021
         out_dict = self(x)
         loss_dict = self.loss_function(out_dict, x.detach().clone(), mode="test")
 
@@ -548,22 +551,25 @@ class BiVAE(BaseVAE):
         parser.add_argument('--latent_dim', type=int, required=True)
         parser.add_argument('--n_styles', type=int, required=True)
         # Recommended
+        # -- Model architecture
         parser.add_argument('--hidden_dims', nargs="+", type=int) #None as default
         parser.add_argument('--adv_dims', dest="adversary_dims", nargs="+", type=int) #None as default
-        parser.add_argument('-lr', '--learning_rate', type=float, default="1e-3")
-        parser.add_argument('--adv_weight', dest="adv_loss_weight", type=float, default="1.0")
-
         parser.add_argument('--act_fn', type=str, default="leaky_relu")
-        # Specific to BiVAE
-        # Add boolean argument switches: https://stackoverflow.com/a/31347222
+
+        # -- Loss function
+        parser.add_argument('--kld_weight', type=float, default="1.0")
+        parser.add_argument('--adv_weight', dest="adv_loss_weight", type=float, default="1.0")
+        # Add boolean argument switches for contrasive loss
+        # src: https://stackoverflow.com/a/31347222
         group = parser.add_mutually_exclusive_group(required=False)
         group.add_argument('--is_contrasive', dest='is_contrasive', action='store_true')
         group.add_argument('--not_contrasive', dest='is_contrasive', action='store_false')
         parser.set_defaults(is_contrasive=True)
 
-        parser.add_argument('--kld_weight', type=float, default="1.0")
-
+        # -- Optimizer(s)
+        parser.add_argument('-lr', '--learning_rate', type=float, default="1e-3")
         return parser
+
 
 class Encoder(nn.Module):
     """
@@ -577,14 +583,18 @@ class Encoder(nn.Module):
         super().__init__()
         # self.convs =
 
+
 class Decoder(nn.Module):
     pass
+
 
 class Adversary(nn.Module):
     pass
 
+
 class FCAdversary(Adversary):
     pass
+
 
 class CNNAdversary(Adversary):
     pass
