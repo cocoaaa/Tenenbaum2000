@@ -13,7 +13,8 @@ from src.data.transforms.functional import unnormalize
 
 def show_npimgs(npimgs: Iterable[np.ndarray], *,
                 titles: Iterable[Union[str, int]]=None,
-                nrows: int=None, factor=3.0,
+                nrows: int=None,
+                factor=3.0,
                 cmap:str = None,
                 title: Optional[str] = None,
                 set_axis_off: bool=True) -> plt.Axes:
