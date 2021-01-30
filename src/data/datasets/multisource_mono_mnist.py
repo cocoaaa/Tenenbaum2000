@@ -125,6 +125,24 @@ class MultiMonoMNIST(Dataset):
     def __getitem__(self, index:int) -> Tuple[Any,Any]:
         return self.ds[index]
 
+    @classmethod
+    def unpack(cls, batch: Dict[str, Any]) -> Tuple[Any]:
+        """Unpacks a batch as a dictionary to a tuple of (data_x, content_label, style_label),
+        so that the dataloading implementation is similar to standard torch's dataset objects
+        In every Multisource dataset, we delegate it to each homogeneous dataset class.
+
+        Parameters
+        ----------
+        batch : Dict[str,Any]
+            a sample from the dataset returned by self.__getitem__(), containing the data("x"),
+            content-label and style-label
+
+        Returns
+        -------
+        a tuple of the data, its content label and its style label
+        """
+        return MonoMNIST.unpack(batch)
+
     @property
     def name(self) -> str:
         return self._name_formatspec.format(

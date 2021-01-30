@@ -41,7 +41,8 @@ class MultiRotatedMNIST(TwoFactorDataset):
         self.transform = transform
         self.digit_label_transform = digit_label_transform
         # By default, encode the angle(float) to an integer angle-label (ie. style class index)
-        self.angle_label_transform = angle_label_transform or transforms.Lambda(lambda angle_label: self.angle2idx[angle_label])
+        self.angle_label_transform = angle_label_transform or \
+                                     transforms.Lambda(lambda angle_label: self.angle2idx[float(angle_label)]) #float conversion because DataLoader's collate_fn will make it return torch.tensor()
         self.train = train
         self.mode = 'train' if self.train else 'test'
         self.download = download

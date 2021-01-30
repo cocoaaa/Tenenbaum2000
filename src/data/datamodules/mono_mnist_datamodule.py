@@ -116,7 +116,7 @@ class MonoMNISTDataModule(BaseDataModule):
 
         # Assign test dataset for use in dataloader(s)
         if stage == 'test' or stage is None:
-            self.test_ds = MonoMNISTDataModule(self.data_root,
+            self.test_ds = MonoMNIST(self.data_root,
                                                color=self.color,
                                                seed=self.seed,
                                                train=False,

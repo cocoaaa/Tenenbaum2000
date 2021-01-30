@@ -79,7 +79,8 @@ class MonoMNIST(TwoFactorDataset):
         Returns
         -------
             Dict: {
-                "img": pil_image,
+                "img": tensor_image, # by default, range of [0,1], shape (28,28).
+                                     # Additional transform specified at initiation will be applied on top of the default transforms
                 "digit": target,
                 "color" : str_dataset_name/color
             } where target is index of the target class.
@@ -108,8 +109,9 @@ class MonoMNIST(TwoFactorDataset):
     def __len__(self) -> int:
         return len(self.data)
 
-    def keys(self) -> List[str]:
-        return self._keys
+    @classmethod
+    def keys(cls) -> List[str]:
+        return cls._keys
 
     @property
     def name(self) -> str:
@@ -128,7 +130,14 @@ class MonoMNIST(TwoFactorDataset):
                          use_train_dataset:bool=True):
         """
         Split the original MNIST dataset into 4 non-overlapping subsets of (almost)
-        equal size, using a random-split
+        equal size, using a random-split.
+
+        Note
+        ----
+            This method only partitions the full MNIST into 4 non-overlapping partitions, where each partition has the same
+        distribution of the content-ids (ie. digit-ids, ie. [n0, n1, ..., n9] is (almost) the same across all partitions.
+            The purpose of each partition is to be colorized into different color (r,g,b,gray)
+
         TODO:
         :param mnist_data_root: A directory that contains MNIST/raw and MNIST/processed.
             Eg. '/data/hayley-old/Tenanbaum2000/data/'
@@ -165,7 +174,7 @@ class MonoMNIST(TwoFactorDataset):
             gray_imgs, r_imgs, g_imgs, b_imgs = random_split(imgs,
                                                            [n_gray, n_color, n_color, n_color],
                                                            generator=torch.Generator().manual_seed(seed))
-            # gray/r/g/b: list of pil images -- each dataset has same digit id; different styles (either grayscale, red, green, blue)
+            # gray/r/g/b: list of pil images -- each dataset has the same digit id; different styles (either grayscale, red, green, blue)
 
             print("Digit id: ", digit)
             print("\t", [len(i) for i in [gray_imgs, r_imgs, g_imgs, b_imgs]])
@@ -198,7 +207,7 @@ class MonoMNIST(TwoFactorDataset):
             print("Saved: ", out_fn)
 
     @classmethod
-    def unpack(self, batch: Dict[str, Any]) -> Tuple[Any]:
+    def unpack(cls, batch: Dict[str, Any]) -> Tuple[Any]:
         """Unpacks a batch as a dictionary to a tuple of (data_x, content_label, style_label),
         so that the dataloading implementation is similar to standard torch's dataset objects
 

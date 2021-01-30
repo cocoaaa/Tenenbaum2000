@@ -135,7 +135,7 @@ class MaptilesDataModule(BaseDataModule):
     @property
     def name(self):
         try:
-            return str(self.train_ds)
+            return self.train_ds.name
         except:
             return 'Maptiles'
 

@@ -6,3 +6,5 @@ from .usps_datamodule import USPSDataModule
 from .maptiles_datamodule import MaptilesDataModule
 
 from .multisource_mono_mnist_datamodule import MultiMonoMNISTDataModule
+from .multisource_rotated_mnist_datamodule import MultiRotatedMNISTDataModule
+from .multisource_maptiles_datamodule import MultiMaptilesDataModule
