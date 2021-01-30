@@ -253,9 +253,10 @@ def compute_avg_codes(
 
     with torch.no_grad():
         batch = next(iter(dl))
-        x = batch['img'] # todo: unpack a sample from dataset object using DS.unpack
-        label_c = batch['digit']
-        label_s = batch['color']
+        # x = batch['img'] # todo: unpack a sample from dataset object using DS.unpack
+        # label_c = batch['digit']
+        # label_s = batch['color']
+        x, label_c, label_s = dm.unpack(batch)
 
         dict_qparams = model.encode(x)
         mu_qc = dict_qparams['mu_qc']
