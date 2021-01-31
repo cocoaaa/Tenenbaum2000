@@ -3,6 +3,7 @@ from argparse import ArgumentParser
 import numpy as np
 import torch
 from torch import nn
+from torch import optim
 from torch.nn import functional as F
 import pytorch_lightning as pl
 from pytorch_lightning.core.lightning import LightningModule
@@ -109,7 +110,6 @@ class BetaVAE(BaseVAE):
                                          has_bn=True,
                                          act_fn=act_fn)  # bs, (len_flatten,) -> ... -> bs, (n_channels, h,w)
         elif self.dec_type == 'resnet':
-            pass
             self.decoder = ResNetDecoder(decoder_dims,
                                          act_fn=act_fn) #todo
         else:
@@ -291,16 +291,28 @@ class BetaVAE(BaseVAE):
         return {"test_loss": loss_dict["loss"]}
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.hparams.get("learning_rate"))
+        optimizer = optim.Adam(self.parameters(), lr=self.learning_rate)
+        lr_scheduler = {
+            'scheduler': optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                              mode='min',
+                                                              patience=10,
+                                                              verbose=True),
+            'monitor': 'val_loss',
+            'name': "train/lr/Adam",
+        }
 
+        return [optimizer], [lr_scheduler]
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
         # parser.add_argument('--in_shape', nargs=3,  type=int, required=True)
+        parser.add_argument('--enc_type', type=str, default="conv")
+        parser.add_argument('--dec_type', type=str, default="conv")
         parser.add_argument('--latent_dim', type=int, required=True)
         parser.add_argument('--hidden_dims', nargs="+", type=int) #None as default
-        parser.add_argument('--act_fn', type=str, default="leaky_relu")
-        parser.add_argument('--kld_weight', type=float, default="1.0")
+        parser.add_argument('--act_fn', type=str, default="leaky_relu") #todo: proper set up in main function needed via utils.py's get_act_fn function
+        # parser.add_argument('--out_fn', type=str, default="tanh")
+        parser.add_argument('--kld_weight', type=float, default=1.0)
         parser.add_argument('-lr', '--learning_rate', type=float, default=1e-3)
 
 
