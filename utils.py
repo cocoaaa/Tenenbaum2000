@@ -7,14 +7,15 @@ import torch.nn as nn
 # plmodules
 from src.models.plmodules.three_fcs import ThreeFCs
 from src.models.plmodules.vanilla_vae import VanillaVAE
+from src.models.plmodules.beta_vae import BetaVAE
 from src.models.plmodules.iwae import IWAE
 from src.models.plmodules.bilatent_vae import BiVAE
 
 # datamodules
-from src.data.datamodules.maptiles_datamodule import MaptilesDataModule
 from src.data.datamodules.mnist_datamodule import MNISTDataModule
 from src.data.datamodules import MultiMonoMNISTDataModule
 from src.data.datamodules import MultiRotatedMNISTDataModule
+from src.data.datamodules.maptiles_datamodule import MaptilesDataModule
 from src.data.datamodules import MultiMaptilesDataModule
 
 # src helpers
@@ -32,9 +33,9 @@ def get_dm_class(dm_name:str) -> object:
     dm_name = dm_name.lower()
     return {
         'mnist': MNISTDataModule,
-        'maptiles': MaptilesDataModule,
         'multi_mono_mnist': MultiMonoMNISTDataModule,
         'multi_rotated_mnist': MultiRotatedMNISTDataModule,
+        'maptiles': MaptilesDataModule,
         'multi_maptiles': MultiMaptilesDataModule,
     }[dm_name]
 
@@ -44,6 +45,7 @@ def get_model_class(model_name: str) -> object:
     return {
         "three_fcs": ThreeFCs,
         "vae": VanillaVAE,
+        "beta_vae": BetaVAE,
         "iwae": IWAE,
         "bivae": BiVAE,
 
@@ -146,6 +148,14 @@ def instantiate_model(args):
 
     # Specify extra kwargs for each model class
     # Add one for new model here
+    if model_name == 'beta_vae':
+        extra_kw = {
+            "enc_type": args.enc_type,
+            "dec_type": args.dec_type,
+            "kld_weight": args.kld_weight,
+        }
+        kwargs.update(extra_kw)
+
     if model_name == 'iwae':
         kwargs['n_samples'] = args.n_samples
 
