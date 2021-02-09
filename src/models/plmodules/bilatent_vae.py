@@ -538,7 +538,7 @@ class BiVAE(BaseVAE):
                                                          patience=10,
                                                          verbose=True),
             'monitor': 'val_loss',
-            'name': "train/lr/mySGD",
+            'name': "train/lr/Adam",
         }
 
         return [optimizer], [lr_scheduler]
@@ -557,8 +557,8 @@ class BiVAE(BaseVAE):
         parser.add_argument('--act_fn', type=str, default="leaky_relu")
 
         # -- Loss function
-        parser.add_argument('--kld_weight', type=float, default="1.0")
-        parser.add_argument('--adv_weight', dest="adv_loss_weight", type=float, default="1.0")
+        parser.add_argument('--kld_weight', type=float, default=1.0)
+        parser.add_argument('--adv_weight', dest="adv_loss_weight", type=float, default=1.0)
         # Add boolean argument switches for contrasive loss
         # src: https://stackoverflow.com/a/31347222
         group = parser.add_mutually_exclusive_group(required=False)
@@ -567,7 +567,7 @@ class BiVAE(BaseVAE):
         parser.set_defaults(is_contrasive=True)
 
         # -- Optimizer(s)
-        parser.add_argument('-lr', '--learning_rate', type=float, default="1e-3")
+        parser.add_argument('-lr', '--learning_rate', type=float, default=1e-3)
         return parser
 
 
