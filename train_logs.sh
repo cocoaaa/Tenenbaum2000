@@ -483,10 +483,12 @@ nohup python tune_loss_weights_bivae.py --model_name="bivae" \
 # 2021-1-30
 # Test BetaVAE with conv/resnet encoder -- conv/resnet decoder pair on MNIST
 # with beta=1.0 + Beta cyclic scheduler
-# Whenever enc is a resnet, hidden_dims (of the encoder) is is [32,32,...]
+# Whenever enc is a resnet, hidden_dims (of the encoder) is [32,32,...]
 # ie. repeats the first dimension twice
 
+
 #1. enc-dec: conv-conv
+# BetaVAE-conv-conv-1.000_MNIST/version0
 nohup python train.py --model_name="beta_vae" \
 --enc_type "conv" --dec_type "conv" \
 --latent_dim=10 --hidden_dims 32 64 128 256 \
@@ -496,10 +498,22 @@ nohup python train.py --model_name="beta_vae" \
 --gpu_id=1 --max_epochs=200   --terminate_on_nan=True  \
 --log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-30/" &
 
-# 2. enc-dec: conv-resnet
+# 2.1 enc-dec: conv-resnet
+# BetaVAE-conv-resnet-1.000_MNIST/version0
 nohup python train.py --model_name="beta_vae" \
 --enc_type "conv" --dec_type "resnet" \
---latent_dim=10 --hidden_dims 32 64 128 256 \
+--latent_dim=10 --hidden_dims 32 32 64 128 256 \
+--kld_weight=1.0  --use_beta_scheduler \
+--data_name="mnist" --data_root='/data/hayley-old/Tenanbaum2000/data' \
+-lr 3e-4 -bs 32 \
+--gpu_id=1 --max_epochs=200   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-30/" &
+
+# 2.2 enc-dec: conv-resnet
+# BetaVAE-conv-resnet-1.000_MNIST/version1
+nohup python train.py --model_name="beta_vae" \
+--enc_type "conv" --dec_type "resnet" \
+--latent_dim=10 --hidden_dims 32  64 128 256 \
 --kld_weight=1.0  --use_beta_scheduler \
 --data_name="mnist" --data_root='/data/hayley-old/Tenanbaum2000/data' \
 -lr 3e-4 -bs 32 \
@@ -507,5 +521,153 @@ nohup python train.py --model_name="beta_vae" \
 --log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-30/" &
 
 # 3. enc-dec: resnet-conv
+# BetaVAE-resnet-conv-1.000_MNIST/version0
+nohup python train.py --model_name="beta_vae" \
+--enc_type "resnet" --dec_type "conv" \
+--latent_dim=10 --hidden_dims 32 32 64 128 256 \
+--kld_weight=1.0  --use_beta_scheduler \
+--data_name="mnist" --data_root='/data/hayley-old/Tenanbaum2000/data' \
+-lr 3e-4 -bs 32 \
+--gpu_id=1 --max_epochs=200   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-30/" &
 
 # 4. enc-dec: resnet-resnet
+# BetaVAE-resnet-resnet-1.000_MNIST/version0
+nohup python train.py --model_name="beta_vae" \
+--enc_type "resnet" --dec_type "resnet" \
+--latent_dim=10 --hidden_dims 32 32 64 128 256 \
+--kld_weight=1.0  --use_beta_scheduler \
+--data_name="mnist" --data_root='/data/hayley-old/Tenanbaum2000/data' \
+-lr 3e-4 -bs 32 \
+--gpu_id=1 --max_epochs=200   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-30/" &
+
+# Run the above 4 kinds of beta-VAE (with each enc-dec type pair) without beta annealing scheduler
+# --not_use_beta_scheduler
+# 1. enc-dec: conv-conv
+# BetaVAE-conv-conv-1.000_MNIST/version1
+nohup python train.py --model_name="beta_vae" \
+--enc_type "conv" --dec_type "conv" \
+--latent_dim=10 --hidden_dims 32 64 128 256 \
+--kld_weight=1.0  --not_use_beta_scheduler \
+--data_name="mnist" --data_root='/data/hayley-old/Tenanbaum2000/data' \
+-lr 3e-4 -bs 32 \
+--gpu_id=1 --max_epochs=200   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-30/" &
+
+# 2.1 enc-dec: conv-resnet
+# BetaVAE-conv-resnet-1.000_MNIST/version2
+nohup python train.py --model_name="beta_vae" \
+--enc_type "conv" --dec_type "resnet" \
+--latent_dim=10 --hidden_dims 32 32 64 128 256 \
+--kld_weight=1.0  --not_use_beta_scheduler \
+--data_name="mnist" --data_root='/data/hayley-old/Tenanbaum2000/data' \
+-lr 3e-4 -bs 32 \
+--gpu_id=1 --max_epochs=200   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-30/" &
+
+# 2.2 enc-dec: conv-resnet
+# BetaVAE-conv-resnet-1.000_MNIST/version3
+nohup python train.py --model_name="beta_vae" \
+--enc_type "conv" --dec_type "resnet" \
+--latent_dim=10 --hidden_dims 32  64 128 256 \
+--kld_weight=1.0  --not_use_beta_scheduler \
+--data_name="mnist" --data_root='/data/hayley-old/Tenanbaum2000/data' \
+-lr 3e-4 -bs 32 \
+--gpu_id=1 --max_epochs=200   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-30/" &
+
+# 3. enc-dec: resnet-conv
+# BetaVAE-resnet-conv-1.000_MNIST/version1
+nohup python train.py --model_name="beta_vae" \
+--enc_type "resnet" --dec_type "conv" \
+--latent_dim=10 --hidden_dims 32 32 64 128 256 \
+--kld_weight=1.0  --not_use_beta_scheduler \
+--data_name="mnist" --data_root='/data/hayley-old/Tenanbaum2000/data' \
+-lr 3e-4 -bs 32 \
+--gpu_id=1 --max_epochs=200   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-30/" &
+
+#(oops, mistake - ran without changing the beta scheduler flag)
+# 4.1 enc-dec: resnet-resnet
+# BetaVAE-resnet-resnet-1.000_MNIST/version1
+# Oops, I ran with the wrong flay for the beta scheduler on this one.
+nohup python train.py --model_name="beta_vae" \
+--enc_type "resnet" --dec_type "resnet" \
+--latent_dim=10 --hidden_dims 32 32 64 128 256 \
+--kld_weight=1.0  --use_beta_scheduler \
+--data_name="mnist" --data_root='/data/hayley-old/Tenanbaum2000/data' \
+-lr 3e-4 -bs 32 \
+--gpu_id=1 --max_epochs=200   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-30/" &
+
+# With the correct flag:
+# 4.2 enc-dec: resnet-resnet
+# BetaVAE-resnet-resnet-1.000_MNIST/version2
+nohup python train.py --model_name="beta_vae" \
+--enc_type "resnet" --dec_type "resnet" \
+--latent_dim=10 --hidden_dims 32 32 64 128 256 \
+--kld_weight=1.0  --not_use_beta_scheduler \
+--data_name="mnist" --data_root='/data/hayley-old/Tenanbaum2000/data' \
+-lr 3e-4 -bs 32 \
+--gpu_id=1 --max_epochs=200   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-30/" &
+
+
+# For each enc-dec pair, search the beta (kld_weight) space (w/ or w/o beta_scheduler)
+# search_space = {
+#    "latent_dim": 10, #tune.grid_search([16, 32, 64,128]),
+#    'kld_weight': tune.grid_search([0., 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32., 64, 128., 256, 512, 1024]),
+#    'use_beta_scheduler': tune.grid_search([False,True]),
+#    'learning_rate': tune.grid_search(list(np.logspace(-4., -1, num=10))),
+#    'batch_size': tune.grid_search([32, 64, 128]),
+#}
+# 1. enc-dec: conv-conv
+nohup python tune_hparams_vae.py --model_name="beta_vae" \
+--enc_type "conv" --dec_type "conv" \
+--latent_dim=10 --hidden_dims 32 64 128 256 \
+--data_name="mnist" --data_root='/data/hayley-old/Tenanbaum2000/data' \
+--gpu_id=2 --max_epochs=200   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-30-ray/" &
+
+# 2. enc-dec: conv-resnet
+nohup python tune_hparams_vae.py --model_name="beta_vae" \
+--enc_type "conv" --dec_type "resnet" \
+--latent_dim=10 --hidden_dims 32 64 128 256 \
+--data_name="mnist" --data_root='/data/hayley-old/Tenanbaum2000/data' \
+--gpu_id=2 --max_epochs=200   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-30-ray/" &
+
+# 3. enc-dec: resnet-conv
+nohup python tune_hparams_vae.py --model_name="beta_vae" \
+--enc_type "resnet" --dec_type "conv" \
+--latent_dim=10 --hidden_dims 32 32 64 128 256 \
+--data_name="mnist" --data_root='/data/hayley-old/Tenanbaum2000/data' \
+--gpu_id=2 --max_epochs=200   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-30-ray/" &
+
+# 4. enc-dec: resnet-resnet
+nohup python tune_hparams_vae.py --model_name="beta_vae" \
+--enc_type "resnet" --dec_type "resnet" \
+--latent_dim=10 --hidden_dims 32 32 64 128 256 \
+--data_name="mnist" --data_root='/data/hayley-old/Tenanbaum2000/data' \
+--gpu_id=2 --max_epochs=200   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-30-ray/" &
+
+# Train beta vae with maptiles with varying hyperparams
+# kld_weight
+# Eventaully stop after today and look at embedding etc
+# Not interested in the recon quality
+# - that's why we don't use GAN
+
+# I ran a bunch of training of Beta-VAE with different (enc-dec) pairs on Maptiles in Jupyter Notebook
+# See the notebooks, naned "14-..."
+# Log Dir Example:
+# /data/hayley-old/Tenanbaum2000/temp-logs/
+# BetaVAE-resnet-resnet-1.000_Maptiles_la-charlotte-vegas-boston-paris-amsterdam-shanghai-seoul-chicago-manhattan-berlin-montreal-rome_StamenTonerBackground_14/version_1
+
+# cities = all cities (la-charlotte-vegas-boston-paris-amsterdam-shanghai-seoul-chicago-manhattan-berlin-montreal-rome)
+# One style = StamenTonerBackground
+# Zoom = 14
+
+# As above, beta is fixed to 1.0, And, used Cyclic Beta annealing
