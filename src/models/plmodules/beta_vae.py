@@ -215,10 +215,6 @@ class BetaVAE(BaseVAE):
            'loss': loss,
         }
 
-        if self.current_epoch % 10 == 0 and self.trainer.batch_idx % 300 == 0:
-            print(f"Ep: {self.trainer.current_epoch}, batch: {self.trainer.batch_idx}")
-            pprint(loss_dict)
-
         return loss_dict
 
     def sample(self,
@@ -280,6 +276,10 @@ class BetaVAE(BaseVAE):
         self.log('val/kld', loss_dict["kld"])
         self.log('val/vae_loss', loss_dict["loss"])
         self.log('val/loss', loss_dict["loss"])
+
+        if self.current_epoch % 10 == 0 and self.trainer.batch_idx % 300 == 0:
+            print(f"Ep: {self.trainer.current_epoch}, batch: {self.trainer.batch_idx}, loss: {loss_dict['loss']}")
+
         return {"val_loss": loss_dict["loss"]}
 
     def test_step(self, batch, batch_idx):
