@@ -201,7 +201,8 @@ if __name__ == '__main__':
     # Run the experiment
     # ------------------------------------------------------------------------
     start_time = time.time()
-    print(f"{exp_name} started... Logging to {Path(tb_logger.log_dir).absolute()}")
+    print(f"{exp_name} started...")
+    print(f"Logging to {Path(tb_logger.log_dir).absolute()}")
     trainer.fit(model, dm)
     print(f"Finished at ep {trainer.current_epoch, trainer.batch_idx}")
 
