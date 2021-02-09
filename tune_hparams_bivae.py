@@ -66,18 +66,6 @@ from ray.tune import track
 # from hyperopt import hp
 # from ray.tune.suggest.hyperopt import HyperOptSearc
 
-# plmodules
-from src.models.plmodules.three_fcs import ThreeFCs
-from src.models.plmodules.vanilla_vae import VanillaVAE
-from src.models.plmodules.iwae import IWAE
-from src.models.plmodules.bilatent_vae import BiVAE
-
-# datamodules
-from src.data.datamodules.maptiles_datamodule import MaptilesDataModule
-from src.data.datamodules.mnist_datamodule import MNISTDataModule
-from src.data.datamodules import MultiMonoMNISTDataModule
-
-# callbacks
 from src.callbacks.recon_logger import ReconLogger
 from src.callbacks.hist_logger import  HistogramLogger
 from src.callbacks.beta_scheduler import BetaScheduler
@@ -88,8 +76,8 @@ from src.utils.misc import info, n_iter_per_epoch
 from src.models.model_wrapper import ModelWrapper
 
 # utils for instatiating a selected datamodule and a selected model
-from .utils import get_model_class, get_dm_class
-from .utils import instantiate_model, instantiate_dm
+from utils import get_model_class, get_dm_class
+from utils import instantiate_model, instantiate_dm
 
 
 if __name__ == '__main__':
@@ -173,6 +161,8 @@ if __name__ == '__main__':
                                                  default_hp_metric=False,
                                                  )
         log_dir = Path(tb_logger.log_dir)
+        print("Log Dir: ", log_dir)
+        # breakpoint()
         if not log_dir.exists():
             log_dir.mkdir(parents=True)
             print("Created: ", log_dir)
@@ -273,8 +263,8 @@ if __name__ == '__main__':
     search_space = {
         "latent_dim": 10, #tune.grid_search([16, 32, 64,128]),
         'is_contrasive': tune.grid_search([False, True]),
-        'kld_weight': tune.grid_search([0., 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32., 64, 128., 256]),
-        'use_beta_scheduler': False,
+        'kld_weight': tune.grid_search([0., 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32., 64, 128., 256, 512, 1024]),
+        'use_beta_scheduler': False, #tune.grid_search([False,True]),
         'adv_loss_weight': tune.grid_search([5., 15., 45., 135., 405., 1215.]),
 
         'learning_rate': tune.grid_search(list(np.logspace(-4., -1, num=10))),
