@@ -167,6 +167,7 @@ class MaptilesDataModule(BaseDataModule):
 
         # split to train/val or test
         if stage == 'fit':
+            # Set train_ds, val_ds
             self.train_ds, self.val_ds = MaptilesDataset.random_split(dset, 0.7)
             self.n_train, self.n_val = len(self.train_ds), len(self.val_ds)
             assert len(self.train_ds) + len(self.val_ds) == len(dset)
@@ -187,6 +188,11 @@ class MaptilesDataModule(BaseDataModule):
 
             if use_training_stat:
                 self.val_ds.transform = train_transform
+
+            # Reset each dataset's target_transform to be the same as the self.target_transform
+            self.train_ds.target_transform = self.target_transform
+            self.val_ds.target_transform = self.target_transform
+
 
         if stage == 'test':
             # split the whole dataset into tr:val:test=4:3:3
@@ -213,6 +219,12 @@ class MaptilesDataModule(BaseDataModule):
             if use_training_stat:
                 self.val_ds.transform = train_transform
                 self.test_ds.transform = train_transform
+
+            # Reset each dataset's target_transform to be the same as the self.target_transform
+            self.train_ds.target_transform = self.target_transform
+            self.val_ds.target_transform = self.target_transform
+            self.test_ds.transform = self.target_transform
+
 
     # return the dataloader for each split
     def train_dataloader(self):
