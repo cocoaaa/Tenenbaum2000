@@ -12,6 +12,9 @@ from pytorch_lightning.metrics import Accuracy
 
 from pprint import pprint
 from .base import BaseVAE
+from src.models.convnet import conv_blocks, deconv_blocks
+from src.models.resnet import ResNet
+from src.models.resnet_deconv import ResNetDecoder
 from .utils import  compute_kld
 
 class BiVAE(BaseVAE):
@@ -29,6 +32,9 @@ class BiVAE(BaseVAE):
                  is_contrasive: bool = True,
                  kld_weight: float=1.0,
                  adv_loss_weight: float=1.0,
+
+                 enc_type: str = 'conv',
+                 dec_type: str = 'conv',
                  **kwargs) -> None:
         """
         VAE with extra adversarial loss from a style discriminator to enforce the information from original data to be
@@ -48,13 +54,15 @@ class BiVAE(BaseVAE):
             vae_loss = recon_loss + kld_weight * kld
         :param adv_loss_weight (float); Weight btw vae_loss and adv_loss
             loss = vae_loss + adv_loss_weight * adv_loss
+        :param enc_type (str); One of ['resnet', 'conv']
+        :param dec_type(str); One of ['resnet', 'conv']
         :param kwargs: will be part of self.hparams
             Eg. batch_size, kld_weight
         """
         super().__init__()
         # About input x
         self.dims = in_shape
-        self.n_channels, self.in_h, self.in_w = in_shape
+        self.in_channels, self.in_h, self.in_w = in_shape
         # About label y
         self.n_styles = n_styles # num of styles from which the adversary to predict
         # About model configs
@@ -70,6 +78,9 @@ class BiVAE(BaseVAE):
         self.is_contrasive = is_contrasive
         self.kld_weight = kld_weight
         self.adv_loss_weight = adv_loss_weight
+        # Encoder, Decoder type
+        self.enc_type = enc_type
+        self.dec_type = dec_type
         # Save kwargs to tensorboard's hparams
         self.save_hyperparameters()
 
@@ -78,56 +89,76 @@ class BiVAE(BaseVAE):
         self.last_h, self.last_w =int(self.in_h/2**self.n_layers), int(self.in_w/2**self.n_layers)
 
         # Build Encoder
-        modules = []
-        in_c = self.n_channels
-        for h_dim in self.hidden_dims:
-            modules.append(
-                nn.Sequential(
-                    nn.Conv2d(in_c, out_channels=h_dim,
-                              kernel_size= 3, stride= 2, padding  = 1),
-                    nn.BatchNorm2d(h_dim),
-                    self.act_fn)
-            )
-            in_c = h_dim
+        if self.enc_type == 'conv':
+            self.encoder = conv_blocks(self.in_channels,
+                                       self.hidden_dims,
+                                       has_bn=True,
+                                       act_fn=act_fn)
+        elif self.enc_type == 'resnet':
+            self.encoder = ResNet(self.in_channels,
+                                  self.hidden_dims,
+                                  act_fn=act_fn)
+        else:
+            raise NotImplementedError("Currently supports convnet, resnet as encoder")
 
-        self.encoder = nn.Sequential(*modules)
         self.len_flatten = self.hidden_dims[-1] * self.last_h * self.last_w
         self.fc_flatten2qparams = nn.Linear(self.len_flatten, 2*self.content_dim+2*self.style_dim) # mu_qc, std_qc, mu_qs, std_qs (both c, s have the same dim)
 
-
         # Build Decoder
-        modules = []
-        self.fc_latent2decoder = nn.Linear(self.latent_dim, self.len_flatten)
-        rev_hidden_dims = self.hidden_dims[::-1]
+        # modules = []
+        # self.fc_latent2decoder = nn.Linear(self.latent_dim, self.len_flatten)
+        # rev_hidden_dims = self.hidden_dims[::-1]
+        #
+        # for i in range(len(rev_hidden_dims) - 1):
+        #     modules.append(
+        #         nn.Sequential(
+        #             nn.ConvTranspose2d(rev_hidden_dims[i],
+        #                                rev_hidden_dims[i + 1],
+        #                                kernel_size=3,
+        #                                stride = 2,
+        #                                padding=1,
+        #                                output_padding=1),
+        #             nn.BatchNorm2d(rev_hidden_dims[i + 1]),
+        #             self.act_fn)
+        #     )
+        #
+        # self.decoder = nn.Sequential(*modules)
+        #
+        # self.final_layer = nn.Sequential(
+        #                     nn.ConvTranspose2d(rev_hidden_dims[-1],
+        #                                        self.n_channels,
+        #                                        kernel_size=3,
+        #                                        stride=2,
+        #                                        padding=1,
+        #                                        output_padding=1),
+        #                     nn.BatchNorm2d(self.n_channels),
+        #                     self.act_fn,
+        #
+        #                     nn.Conv2d(self.n_channels, self.n_channels,
+        #                               kernel_size=3, stride=1, padding= 1),
+        #                     nn.Tanh()) #todo: sigmoid? maybe Tanh is better given we normalize inputs by mean and std
+        self.fc_latent2flatten = nn.Linear(self.latent_dim, self.len_flatten)
 
-        for i in range(len(rev_hidden_dims) - 1):
-            modules.append(
-                nn.Sequential(
-                    nn.ConvTranspose2d(rev_hidden_dims[i],
-                                       rev_hidden_dims[i + 1],
-                                       kernel_size=3,
-                                       stride = 2,
-                                       padding=1,
-                                       output_padding=1),
-                    nn.BatchNorm2d(rev_hidden_dims[i + 1]),
-                    self.act_fn)
-            )
+        if self.enc_type == 'resnet':
+            decoder_dims = [*hidden_dims[1:][::-1], self.in_channels]
+        else:
+            decoder_dims = [*hidden_dims[::-1], self.in_channels]
 
-        self.decoder = nn.Sequential(*modules)
+        if self.dec_type == 'conv':
+            self.decoder = deconv_blocks(decoder_dims[0],
+                                         decoder_dims[1:],
+                                         has_bn=True,
+                                         act_fn=act_fn)  # bs, (len_flatten,) -> ... -> bs, (n_channels, h,w)
+        elif self.dec_type == 'resnet':
+            self.decoder = ResNetDecoder(decoder_dims,
+                                         act_fn=act_fn)  # todo
+        else:
+            raise NotImplementedError("Currently supports convnet, resnet as decoder")
 
-        self.final_layer = nn.Sequential(
-                            nn.ConvTranspose2d(rev_hidden_dims[-1],
-                                               self.n_channels,
-                                               kernel_size=3,
-                                               stride=2,
-                                               padding=1,
-                                               output_padding=1),
-                            nn.BatchNorm2d(self.n_channels),
-                            self.act_fn,
-
-                            nn.Conv2d(self.n_channels, self.n_channels,
-                                      kernel_size=3, stride=1, padding= 1),
-                            nn.Tanh()) #todo: sigmoid? maybe Tanh is better given we normalize inputs by mean and std
+        self.out_layer = nn.Sequential(
+            nn.Conv2d(self.in_channels, self.in_channels,
+                      kernel_size=3, stride=1, padding=1),
+            self.out_fn)  # todo: sigmoid? maybe Tanh is better given we normalize inputs by mean and std
 
         # Build style classifier:
         # Given a content or style code, predict its style label
@@ -145,7 +176,8 @@ class BiVAE(BaseVAE):
 
     @property
     def name(self):
-        return "BiVAE-C" if self.is_contrasive else "BiVAE"
+        bn = "BiVAE-C" if self.is_contrasive else "BiVAE"
+        return f'{bn}-{self.enc_type}-{self.dec_type}-{self.kld_weight:.3f}-{self.adv_loss_weight:.3f}'
 
     def input_dim(self):
         return np.prod(self.dims)
@@ -217,10 +249,10 @@ class BiVAE(BaseVAE):
         :param z: (Tensor) [B, latent_dim]
         :return: (Tensor) [B, C, H, W]
         """
-        out = self.fc_latent2decoder(z) # latent_dim -> len_flatten
+        out = self.fc_latent2decoder(z) # latent_dim -> len_flatten; 1dim tensor
         out = out.view(-1, self.hidden_dims[-1], self.last_h, self.last_w) # back to a mini-batch of 3dim tensors
         out = self.decoder(out); #print(out.shape)
-        out = self.final_layer(out); #print(out.shape)
+        out = self.out_layer(out); #print(out.shape)
         return out
 
     def create_labels(self, z):
