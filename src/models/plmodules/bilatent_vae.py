@@ -27,6 +27,8 @@ class BiVAE(BaseVAE):
                  adversary_dims: Optional[List[int]],
                  learning_rate: float,
                  act_fn: Callable= nn.LeakyReLU(),
+                 out_fn: Callable = nn.Tanh(),
+
                  size_average: bool = False,
 
                  is_contrasive: bool = True,
@@ -70,6 +72,7 @@ class BiVAE(BaseVAE):
         self.content_dim = int(self.latent_dim/2)
         self.style_dim = self.content_dim
         self.act_fn = act_fn
+        self.out_fn = out_fn
         self.learning_rate = learning_rate
         self.size_average = size_average
         self.hidden_dims = hidden_dims or [32, 64, 128, 256, 512]
