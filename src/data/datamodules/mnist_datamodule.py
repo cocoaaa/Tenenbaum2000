@@ -85,7 +85,7 @@ class MNISTDataModule(BaseDataModule):
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
-        parser.add_argument('--data_root', type=str, default='./')
+        parser.add_argument('--data_root', type=str, default='/data/hayley-old/Tenanbaum2000/data')
         parser.add_argument('--in_shape', nargs=3,  type=int, default=[1,32,32])
         parser.add_argument('-bs', '--batch_size', type=int, default=32)
         parser.add_argument('--pin_memory', action="store_true", default=True)
