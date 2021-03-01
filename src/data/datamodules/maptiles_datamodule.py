@@ -60,14 +60,18 @@ class MaptilesDataModule(BaseDataModule):
 
         # Set attributes specific to this dataset
         self.df_fns = df_fns
-        self.cities = cities
-        self.styles = styles
+        self.cities = sorted(cities)
+        self.styles = sorted(styles)
         self.n_classes = len(self.styles)
         self.zooms = zooms
 
+        # City string <-> city_idx
+        self.city2idx = {c:i for i,c in enumerate(self.cities)}
+        self.idx2city = {i:c for i,c in enumerate(self.cities)}
+
         # Style string <-> style_idx
-        self.style2idx = {s:i for i,s in enumerate(self.styles)}
-        self.idx2style = {i:s for i,s in enumerate(self.styles)}
+        self.style2idx = {s: i for i, s in enumerate(self.styles)}
+        self.idx2style = {i: s for i, s in enumerate(self.styles)}
 
         # transforms
         self.transform = transform
