@@ -88,8 +88,10 @@ class BiVAE(BaseVAE):
         self.save_hyperparameters()
 
         # Compute last feature map's height, width
-        self.n_layers = len(self.hidden_dims)
-        self.last_h, self.last_w =int(self.in_h/2**self.n_layers), int(self.in_w/2**self.n_layers)
+        # In case of resnet, the second convlayer doesn't shrink the resolution (h,w)
+        self.n_downsampling_layers = self.get_n_downsampling_layers()
+        self.last_h = int(self.in_h / 2 ** self.n_downsampling_layers)
+        self.last_w = int(self.in_w / 2 ** self.n_downsampling_layers)
 
         # Build Encoder
         if self.enc_type == 'conv':
@@ -180,10 +182,18 @@ class BiVAE(BaseVAE):
     @property
     def name(self):
         bn = "BiVAE-C" if self.is_contrasive else "BiVAE"
-        return f'{bn}-{self.enc_type}-{self.dec_type}-{self.kld_weight:.3f}-{self.adv_loss_weight:.3f}'
+        return f'{bn}-{self.enc_type}-{self.dec_type}-{self.kld_weight:.1f}-{self.adv_loss_weight:.1f}'
 
     def input_dim(self):
         return np.prod(self.dims)
+
+    def get_n_downsampling_layers(self):
+        if self.enc_type == 'conv':
+            return len(self.hidden_dims)
+        elif self.enc_type == 'resnet':
+            return len(self.hidden_dims) - 1
+        else:
+            raise NotImplementedError("Use a valid enc_type: 'conv', 'resnet'")
 
     def encode(self, input: Tensor) -> Dict[str, Tensor]:
         """
@@ -252,7 +262,7 @@ class BiVAE(BaseVAE):
         :param z: (Tensor) [B, latent_dim]
         :return: (Tensor) [B, C, H, W]
         """
-        out = self.fc_latent2decoder(z) # latent_dim -> len_flatten; 1dim tensor
+        out = self.fc_latent2flatten(z) # latent_dim -> len_flatten; 1dim tensor
         out = out.view(-1, self.hidden_dims[-1], self.last_h, self.last_w) # back to a mini-batch of 3dim tensors
         out = self.decoder(out); #print(out.shape)
         out = self.out_layer(out); #print(out.shape)
@@ -590,6 +600,8 @@ class BiVAE(BaseVAE):
         parser.add_argument('--hidden_dims', nargs="+", type=int) #None as default
         parser.add_argument('--adv_dims', dest="adversary_dims", nargs="+", type=int) #None as default
         parser.add_argument('--act_fn', type=str, default="leaky_relu")
+        parser.add_argument('--enc_type', type=str, default="conv")
+        parser.add_argument('--dec_type', type=str, default="conv")
 
         # -- Loss function
         parser.add_argument('--kld_weight', type=float, default=1.0)
