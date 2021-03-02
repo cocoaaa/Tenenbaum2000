@@ -166,6 +166,8 @@ def instantiate_model(args):
             "is_contrasive": args.is_contrasive,
             "kld_weight": args.kld_weight,
             "adv_loss_weight": args.adv_loss_weight,
+            "enc_type": args.enc_type,
+            "dec_type": args.dec_type,
         }
         kwargs.update(extra_kw)
 
