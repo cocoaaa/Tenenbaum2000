@@ -78,7 +78,7 @@ nohup python train.py --model_name="bivae" \
 import os,sys
 from datetime import datetime
 import time
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from collections import OrderedDict
 from pathlib import Path
 from typing import List, Set, Dict, Tuple, Optional, Iterable, Mapping, Union, Callable, TypeVar
@@ -105,40 +105,9 @@ from utils import get_model_class, get_dm_class
 from utils import instantiate_model, instantiate_dm
 
 
-if __name__ == '__main__':
-    parser = ArgumentParser()
-    # Define general arguments for this CLI script for trianing/testing
-    parser.add_argument("--model_name", type=str, required=True)
-    parser.add_argument("--data_name", type=str, required=True)
-    parser.add_argument("--gpu_id", type=str, required=True, help="ID of GPU to use")
-    parser.add_argument("--mode", type=str, default='fit', help="fit or test")
-    parser.add_argument("--log_root", type=str, default='./lightning_logs', help='root directory to save lightning logs')
-
-    # Callback args
-    # parser.add_argument("--hist_epoch_interval", type=int, default=10, help="Epoch interval to plot histogram of q's parameter")
-    # parser.add_argument("--recon_epoch_interval", type=int, default=10, help="Epoch interval to plot reconstructions of train and val samples")
-    parser.add_argument("-v", "--verbose", action="store_true", default=False)
-    args, unknown = parser.parse_known_args()
-    print("CLI args: ")
-    pprint(args)
-
+def train(args: Union[Dict, Namespace]):
     # ------------------------------------------------------------------------
-    # Add model/datamodule/trainer specific args
-    # ------------------------------------------------------------------------
-    model_class = get_model_class(args.model_name)
-    dm_class = get_dm_class(args.data_name)
-    parser = model_class.add_model_specific_args(parser)
-    parser = dm_class.add_model_specific_args(parser)
-    parser = pl.Trainer.add_argparse_args(parser)
-    # Callback switch args
-    parser = BetaScheduler.add_argparse_args(parser)
-
-    args = parser.parse_args()
-    print("Final args: ")
-    pprint(args)
-
-    # ------------------------------------------------------------------------
-    # Initialize model, datamodule, trainer using the parsered arg dict
+    # Initialize model, datamodule, trainer using the parsed arg dict
     # ------------------------------------------------------------------------
     # Select Visible GPU
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -221,6 +190,7 @@ if __name__ == '__main__':
     pprint(hparams)
     print("=====")
     print("\t metrics: ", metrics)
+    print(f"Training Done: took {time.time() - start_time}")
 
     # ------------------------------------------------------------------------
     # Evaluation
@@ -239,15 +209,53 @@ if __name__ == '__main__':
     #     - and decode the latent codes. Show the outputs of the decoder.
     #   4. Marginal Loglikelihood of train/val/test dataset
     # ------------------------------------------------------------------------
-    print("Evaluations...")
-    model.eval()
+    # print("Evaluations...")
+    # model.eval()
+
+
+if __name__ == '__main__':
+    parser = ArgumentParser()
+    # Define general arguments for this CLI script for training/testing
+    parser.add_argument("--model_name", type=str, required=True)
+    parser.add_argument("--data_name", type=str, required=True)
+    parser.add_argument("--gpu_id", type=str, required=True, help="ID of GPU to use")
+    parser.add_argument("--mode", type=str, default='fit', help="fit or test")
+    parser.add_argument("--log_root", type=str, default='./lightning_logs', help='root directory to save lightning logs')
+
+    # Callback args
+    # parser.add_argument("--hist_epoch_interval", type=int, default=10, help="Epoch interval to plot histogram of q's parameter")
+    # parser.add_argument("--recon_epoch_interval", type=int, default=10, help="Epoch interval to plot reconstructions of train and val samples")
+    parser.add_argument("-v", "--verbose", action="store_true", default=False)
+    args, unknown = parser.parse_known_args()
+    print("CLI args: ")
+    pprint(args)
 
     # ------------------------------------------------------------------------
-    # 1. Recon
+    # Add model/datamodule/trainer specific args
     # ------------------------------------------------------------------------
+    model_class = get_model_class(args.model_name)
+    dm_class = get_dm_class(args.data_name)
+    parser = model_class.add_model_specific_args(parser)
+    parser = dm_class.add_model_specific_args(parser)
+    parser = pl.Trainer.add_argparse_args(parser)
+    # Callback switch args
+    parser = BetaScheduler.add_argparse_args(parser)
 
+    args = parser.parse_args()
+    print("Final args: ")
+    pprint(args)
 
-    print(f"Done: took {time.time() - start_time}")
+    # ------------------------------------------------------------------------
+    # Run the training workflow
+    # -- Select Visible GPU
+    # -- Initialize model, datamodule, trainer using the parsed arg dict.
+    # -- Specify callbacks
+    # -- Init. trainer
+    # -- Run the experiment
+    # -- Log the best score and current experiment's hyperparameters
+    # -- TODO: Add Evaluation
+    # ------------------------------------------------------------------------
+    train(args)
 
 
 
