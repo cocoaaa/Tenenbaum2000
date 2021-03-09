@@ -671,3 +671,1017 @@ nohup python tune_hparams_vae.py --model_name="beta_vae" \
 # Zoom = 14
 
 # As above, beta is fixed to 1.0, And, used Cyclic Beta annealing
+
+
+#------------------------------------------------------------------------
+# Mar 1, 2021
+# Hparam search: BiVAE with different settings of (encType, decType) on a single style Maptiles
+# -- One search per (encType, decType)
+# -- Main goal is to search over the weights of loss components (ie. kld_weight, adv_loss_weight)
+# -- We also search over both with or w/o beta(kld_weight) cyclic scheduler
+# Dataset params
+# cities =
+# styles =
+# zooms =
+# in_shape =
+# batch_size = 32
+
+# First: with two styles
+nohup python train.py --model_name="bivae" \
+--enc_type "conv" --dec_type "resnet" \
+--latent_dim=10 --hidden_dims 32 64 128 256 512 --adv_dim 32 32 32 --adv_weight 100.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=2 \
+--zooms 14 \
+--gpu_id=2 --max_epochs=200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-01/" &
+
+# Hyperparmeter tuning with Ray
+# -- Search over: latent_dim, enc_type, dec_type, is_contrasive_kld_weight, adv_loss_weight, lr, bs
+# -- Fixed: no beta scheduler
+# -- Initial run failed to start (due to memory lack ? ) on march 01
+# -- Rerunning on March 4, 2021
+nohup python tune_hparams_bivae.py --model_name="bivae" \
+--enc_type 'conv' --dec_type 'resnet' \
+--latent_dim 20 \
+--hidden_dims 32 64 128 256 512 --adv_dim 32 32 32  \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=2 \
+--zooms 14 \
+--gpu_id=0 --max_epochs=200  --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-04-ray/" \ &
+
+#----
+# Second: with 3 styles
+nohup python train.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 128 256 512 --adv_dim 32 32 32 --adv_weight 100.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--gpu_id=2  --max_epochs=200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-01/" &
+
+# Hparam search: BiVAE with different settings of (encType, decType) on a Multi-style Maptiles
+# -- One search per (encType, decType)
+# -- Main goal is to search over the weights of loss components (ie. kld_weight, adv_loss_weight)
+# -- We also search over both with or w/o beta(kld_weight) cyclic scheduler
+# -- Initial run failed to start (due to memory lack ? ) on march 01
+# -- Rerunning on March 4, 2021
+nohup python tune_hparams_bivae.py --model_name="bivae" \
+--enc_type 'conv' --dec_type 'resnet' \
+--latent_dim 20 \
+--hidden_dims 32 64 128 256 512 --adv_dim 32 32 32  \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--gpu_id=1 --max_epochs=200  --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-04-ray/" \
+ | tee -a log.out &
+
+
+
+
+#------------------------------------------------------------------------
+# Mar 4, 2021
+# in shape = (3,64,64)
+# Started to run it 6:20pm Mar 4, 2021
+nohup python train.py --model_name="bivae" \
+--enc_type "conv" --dec_type "resnet" \
+--latent_dim=10 --hidden_dims 32 64 128 256 512 --adv_dim 32 32 32 --adv_weight 100.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=2 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id=2 --max_epochs=200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-04/" &
+
+# 2 tiles; size (3,64,64)
+# Started to run it 6:34pm Mar 4, 2021
+nohup python tune_hparams_bivae.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim 20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32  \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground \
+--n_styles=2 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_ids 0 --max_epochs 100  --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-04-ray/" \ &
+
+
+
+
+# 3styles
+nohup python train.py --model_name="bivae" \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--adv_weight 100.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-04/" &
+
+
+
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--adv_weight 100.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-04/" &
+
+
+
+
+
+
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--adv_weight 50.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-04/" &
+
+
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'resnet' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--adv_weight 50.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-04/" &
+
+
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'resnet' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--adv_weight 100.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-04/" &
+
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--adv_weight 200.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-04/" &
+
+#------------------------------------------------------------------------
+#Mar 5, 2021
+## 3 styles
+## KLD_WEIGHT = 10; varying adv_weight
+#  PID:  10772
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 10.0 \
+--adv_weight 50.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+
+## 16828
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 10.0 \
+--adv_weight 100.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+## 17210
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 10.0 \
+--adv_weight 150.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+##17653
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 10.0 \
+--adv_weight 300.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+## 18055
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 10.0 \
+--adv_weight 500.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+
+## Same suits as above, but without beta scheduler
+##  --not_use_beta_scheduler \
+#  PID: 22906
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 10.0 \
+--not_use_beta_scheduler \
+--adv_weight 50.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+
+## 23271
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 10.0 \
+--not_use_beta_scheduler \
+--adv_weight 100.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+## 23633
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim 20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 10.0 \
+--not_use_beta_scheduler \
+--adv_weight 150.0 \
+--data_name "multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles 3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+##  23797
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 10.0 \
+--not_use_beta_scheduler \
+--adv_weight 300.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+## 23950
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 10.0 \
+--not_use_beta_scheduler \
+--adv_weight 500.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+
+
+## GPU 1
+## kld_weight = 1.0; varying adv_weight
+#  PID:24600
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 1.0 \
+--adv_weight 50.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 1  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+
+##  25362
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 1.0 \
+--adv_weight 100.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 1  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+##  25562
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 1.0 \
+--adv_weight 150.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 1  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+## 25680
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 1.0 \
+--adv_weight 300.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 1  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+##  25932
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 1.0 \
+--adv_weight 500.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 1  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+
+
+## GPU 1
+## kld_weight = 30.0; varying adv_weight
+#  PID: 27694
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 30.0 \
+--adv_weight 50.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 1  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+
+## 28129
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 30.0 \
+--adv_weight 100.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 1  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+## 28253
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 30.0 \
+--adv_weight 150.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 1  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+## 28348
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 30.0 \
+--adv_weight 300.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 1  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+## 28450
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 30.0 \
+--adv_weight 500.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 1  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+### 2 STYLES
+## GPU 0
+## kld_weight = 1.0; varying adv_weight
+#  PID:  1297
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 1.0 \
+--adv_weight 50.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=2 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 0  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+
+##  1420
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 1.0 \
+--adv_weight 100.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=2 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 0  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+## 1625
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 1.0 \
+--adv_weight 150.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=2 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 0  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+## 1723
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 1.0 \
+--adv_weight 300.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=2 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 0  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+## 1955
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 1.0 \
+--adv_weight 500.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=2 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 0  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+
+## kld_weight = 10.0; varying adv_weight
+#  PID: 2451
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 10.0 \
+--adv_weight 50.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=2 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 0  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+## gpu1
+## 2692
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 10.0 \
+--adv_weight 100.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=2 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 1  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+## gpu2
+##  2904
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 10.0 \
+--adv_weight 150.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=2 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 2  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+##  4117
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 10.0 \
+--adv_weight 300.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=2 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 0  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+## 4202
+nohup python train.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--kld_weight 10.0 \
+--adv_weight 500.0 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=2 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 0  --max_epochs 200   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-05/" &
+
+## Mar 6, 2021
+# Hyperparmeter tuning with Ray
+# -- Search over: latent_dim, enc_type, dec_type, is_contrasive_kld_weight, adv_loss_weight, lr, bs
+# -- Fixed: no beta scheduler
+# -- Initial run failed to start (due to memory lack ? ) on march 01
+# -- Rerunning on March 4, 2021
+#--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+
+# PID: 12963
+nohup python tune_hparams_bivae.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim 20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32  \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=2 \
+--zooms 14 \
+--gpu_ids 1 --max_epochs 200  --terminate_on_nan=True  \
+--n_ray_samples 20 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-06-ray/" \ &
+
+# 14535
+nohup python tune_hparams_bivae.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim 20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32  \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--gpu_ids 1 --max_epochs 200  --terminate_on_nan=True  \
+--n_ray_samples 20 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-06-ray/" \ &
+
+
+# 4398
+nohup python tune_hparams_bivae.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim 20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32  \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault StamenWatercolor --n_styles=4 \
+--zooms 14 \
+--n_ray_samples 1 \
+--gpu_ids 0 --max_epochs 200  --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-06-ray/" \ &
+
+
+# Ray PBT
+nohup python tune_bivae_pbt.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'resnet' \
+--latent_dim 20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32  \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=2 \
+--zooms 14 \
+--gpu_ids 1 --max_epochs 200  --terminate_on_nan=True  \
+--n_ray_samples=20 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-06-ray/" \ &
+
+
+
+
+nohup python tune_bivae_pbt.py \
+--model_name="bivae" \
+--enc_type 'resnet' \
+--dec_type 'resnet' \
+--latent_dim 20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32  \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground --n_styles=2 \
+--zooms 14 \
+--gpu_ids 2 --max_epochs 200  --terminate_on_nan=True  \
+--n_ray_samples 20 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-06-ray/" \ &
+
+# 4 styles!
+nohup python tune_bivae_pbt.py \
+--model_name="bivae" \
+--enc_type 'conv' \
+--dec_type 'conv' \
+--latent_dim 20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32  \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault StamenWatercolor --n_styles=4 \
+--zooms 14 \
+--gpu_ids 0 --max_epochs 200  --terminate_on_nan=True  \
+--n_ray_samples 20 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-06-ray/" \ &
+
+
+
+
+# Mar 8, 2021
+# Fixed tune's search space from `grid_search` to `sampling types in order to run
+# multiple workers by setting `n_ray_samples` to > 1
+nohup python tune_bivae.py \
+--model_name="bivae" \
+--latent_dim 20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32  \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles StamenTonerBackground --n_styles=1 \
+--zooms 14 \
+--gpu_ids 0 --max_epochs 150  --terminate_on_nan=True  \
+--n_ray_samples 1 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-08-ray/" \ &
+
+
+nohup python train_grid_search.py \
+--model_name="bivae" \
+--latent_dim=20 \
+--hidden_dims 32 64 128 256 512 \
+--adv_dim 32 32 32 \
+--data_name="multi_maptiles" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+          'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' 'berlin' 'montreal' 'rome' \
+--styles CartoVoyagerNoLabels StamenTonerBackground OSMDefault --n_styles=3 \
+--zooms 14 \
+--in_shape 3 64 64 \
+--gpu_id 0  --max_epochs 150   --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-08/" \ &
