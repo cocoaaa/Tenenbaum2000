@@ -85,7 +85,8 @@ def show_timgs(timgs: Iterable[torch.Tensor], order='chw', **kwargs) -> plt.Axes
     - nrows
     - factor
     - cmap (str): eg. "gray"
-    - title (for the main figure's suptitle)
+    - title (str): suptitle of the main figure
+    - titles (List[str]): a list of axis titles
     """
     try:
         npimgs = timgs.numpy()
