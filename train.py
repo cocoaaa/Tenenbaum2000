@@ -103,16 +103,9 @@ from src.utils.misc import info, n_iter_per_epoch
 # utils for instatiating a selected datamodule and a selected model
 from utils import get_model_class, get_dm_class
 from utils import instantiate_model, instantiate_dm
-
+from utils import add_base_arguments
 
 def train(args: Union[Dict, Namespace]):
-    # ------------------------------------------------------------------------
-    # Initialize model, datamodule, trainer using the parsed arg dict
-    # ------------------------------------------------------------------------
-    # Select Visible GPU
-    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
-
     # Init. datamodule and model
     dm = instantiate_dm(args)
     dm.setup('fit')
@@ -215,19 +208,13 @@ def train(args: Union[Dict, Namespace]):
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    # Define general arguments for this CLI script for training/testing
-    parser.add_argument("--model_name", type=str, required=True)
-    parser.add_argument("--data_name", type=str, required=True)
-    parser.add_argument("--gpu_id", type=str, required=True, help="ID of GPU to use")
-    parser.add_argument("--mode", type=str, default='fit', help="fit or test")
-    parser.add_argument("--log_root", type=str, default='./lightning_logs', help='root directory to save lightning logs')
 
-    # Callback args
-    # parser.add_argument("--hist_epoch_interval", type=int, default=10, help="Epoch interval to plot histogram of q's parameter")
-    # parser.add_argument("--recon_epoch_interval", type=int, default=10, help="Epoch interval to plot reconstructions of train and val samples")
-    parser.add_argument("-v", "--verbose", action="store_true", default=False)
+    # ------------------------------------------------------------------------
+    # Add general arguments for this CLI script for training/testing
+    # ------------------------------------------------------------------------
+    parser = add_base_arguments(parser)
     args, unknown = parser.parse_known_args()
-    print("CLI args: ")
+    print("Base CLI args: ")
     pprint(args)
 
     # ------------------------------------------------------------------------
@@ -238,8 +225,12 @@ if __name__ == '__main__':
     parser = model_class.add_model_specific_args(parser)
     parser = dm_class.add_model_specific_args(parser)
     parser = pl.Trainer.add_argparse_args(parser)
+    parser.add_argument("--gpu_id", type=str, required=True, help="ID of GPU to use")
+
     # Callback switch args
     parser = BetaScheduler.add_argparse_args(parser)
+    # parser.add_argument("--hist_epoch_interval", type=int, default=10, help="Epoch interval to plot histogram of q's parameter")
+    # parser.add_argument("--recon_epoch_interval", type=int, default=10, help="Epoch interval to plot reconstructions of train and val samples")
 
     args = parser.parse_args()
     print("Final args: ")
@@ -255,6 +246,10 @@ if __name__ == '__main__':
     # -- Log the best score and current experiment's hyperparameters
     # -- TODO: Add Evaluation
     # ------------------------------------------------------------------------
+    # Select Visible GPU
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
+    # Start experiment
     train(args)
 
 
