@@ -188,6 +188,9 @@ class MultiMaptilesDataModule(MultiSourceDataModule):
             content_label_transform=self.content_label_transform,
             style_label_transform=self.style_label_transform,
             verbose=self.verbose)
+        if self.df_fns is None:
+            self.df_fns = dset.df_fns
+            print("*** Set the datamodule's df_fns attribute -- Save it for quicker DM init for later runs")
 
         # split to train/val or test
         if stage == 'fit':
