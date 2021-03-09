@@ -1,4 +1,6 @@
+from argparse import ArgumentParser
 from pathlib import Path
+from pprint import pprint
 from typing import List, Set, Dict, Tuple, Optional, Iterable, Mapping, Union, Callable, TypeVar
 
 import torch
@@ -20,6 +22,24 @@ from src.data.datamodules import MultiMaptilesDataModule
 
 # src helpers
 from src.utils.misc import info
+
+def add_base_arguments(parser: ArgumentParser) -> ArgumentParser:
+    """Define general arguments for the command line interface to run the experiment script for training/testing
+    Set ArgumentParser to parse
+    - model_name
+    - data_name
+    - gpu_id: ID of GPU to set visible as os.environ
+    - mode: fit of test
+    - log_root: Root dir to save Lightning logs
+    """
+    parser.add_argument("--model_name", type=str, required=True)
+    parser.add_argument("--data_name", type=str, required=True)
+    # parser.add_argument("--gpu_id", type=str, required=True, help="ID of GPU to use")
+    parser.add_argument("--mode", type=str, default='fit', help="fit or test")
+    parser.add_argument("--log_root", type=str, default='/data/hayley-old/Tenanbaum2000/lightning_logs',
+                        help='root directory to save lightning logs')
+    parser.add_argument("-v", "--verbose", action="store_true", default=False)
+    return parser
 
 def get_act_fn(fn_name:str) -> Callable:
     fn_name = fn_name.lower()
