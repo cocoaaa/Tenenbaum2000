@@ -265,7 +265,7 @@ class MaptilesDataset(TwoFactorDataset):
     def get_channelwise_mean_std(
             dset: Dataset,
             n_channels: int) -> Tuple[np.ndarray, np.ndarray]:
-        """
+        """If unit8, we first convert to [0,1.0] range of float32.
         Modified: https://gist.github.com/jdhao/9a86d4b9e4f79c5330d54de991461fd6
         """
         channel_sum = np.zeros(n_channels)
@@ -277,7 +277,9 @@ class MaptilesDataset(TwoFactorDataset):
                 img = plt.imread(fpath)[..., :n_channels]
             except SyntaxError:  # read as jpg
                 img = plt.imread(fpath, format='jpg')[..., :n_channels]
-
+            if img.dtype == np.uint8:
+                img = img / np.float32(256.)
+                
             n_pixels += img.size / n_channels
             channel_sum += np.sum(img, axis=(0, 1))
             channel_squared_sum += np.sum(img ** 2, axis=(0, 1))
