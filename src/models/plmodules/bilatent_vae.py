@@ -1,4 +1,4 @@
-from typing import List, Callable, Union, Optional, Any, TypeVar, Tuple, Dict
+from typing import List, Callable, Union, Optional, TypeVar, Tuple, Dict
 Tensor = TypeVar('torch.tensor')
 from argparse import ArgumentParser
 import numpy as np
@@ -6,11 +6,8 @@ import torch
 from torch import nn
 from torch import optim
 from torch.nn import functional as F
-import pytorch_lightning as pl
-from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.metrics import Accuracy
 
-from pprint import pprint
 from .base import BaseVAE
 from src.models.convnet import conv_blocks, deconv_blocks
 from src.models.resnet import ResNet
@@ -553,7 +550,8 @@ class BiVAE(BaseVAE):
         score_s = loss_dict.pop('score_s').detach().clone()
         self.val_style_acc(score_s, label_s)
         self.log('val/style_acc', self.val_style_acc)
-
+        # print(self.trainer.callback_metrics.keys())
+        # ['val_loss', 'train/loss', 'train/vae_loss', 'train/recon_loss', 'train/kld', 'train/kld_c', 'train/kld_s', 'train/adv_loss', 'train/adv_loss_s', 'train/adv_loss_c', 'train/style_acc']
         return {"val_loss": loss_dict["loss"]}
 
 
