@@ -40,7 +40,7 @@ class MaptilesDataset(TwoFactorDataset):
         :param verbose:
         """
         self.data_root = data_root
-        self.cities = cities
+        self.cities = sorted(cities)
         self.styles = sorted(styles)
         self.zooms = zooms
         self.n_channels = n_channels
@@ -207,7 +207,7 @@ class MaptilesDataset(TwoFactorDataset):
                     zooms: Iterable[str] = None,
                     verbose: bool = False,
                     ) -> pd.DataFrame:
-        """Collect all Count the number of maptiles from `cities`, for each style in `styles`
+        """Collect paths to all maptile files from `cities`, for each style in `styles`
         and at each zoom level in `zooms`.
 
         Parameters
@@ -222,7 +222,7 @@ class MaptilesDataset(TwoFactorDataset):
 
         Returns
         -------
-        fns : pd.DataFrame with columns = ['city', 'style', 'zoom', 'fpath']
+        df_fns : pd.DataFrame with columns = ['city', 'style', 'zoom', 'fpath']
             a Pandas DataFrame containing maptile information for the queried
             criteria (in the Parameters). Each row contains a metadata about a
             maptile (its 'city', 'style', 'zoom', and 'fpath' (file path)
@@ -234,32 +234,37 @@ class MaptilesDataset(TwoFactorDataset):
         rows = []
         for city_dir in data_root.iterdir():
             if city_dir.is_dir():
-                city = city_dir.stem
+                city = city_dir.name
                 if verbose: print(f"\n{city}")
                 if city not in cities:
                     if verbose: print(f"Skipping... {city}")
                     continue
                 for style_dir in city_dir.iterdir():
                     if style_dir.is_dir():
-                        style = style_dir.stem
+                        style = style_dir.name
                         if verbose: print(f"\n\t{style}")
                         if style not in styles:
                             if verbose: print(f"Skipping... {style}")
                             continue
+                        # breakpoint() #debug
+
                         for zoom_dir in style_dir.iterdir():
                             if zoom_dir.is_dir():
-                                z = zoom_dir.stem
+                                z = zoom_dir.name
                                 if verbose: print(f"\n\t\t{z}")
                                 if z not in zooms:
                                     if verbose: print(f"Skipping... {z}")
                                     continue
+                                # # debug
+                                # print(zoom_dir)
+                                # breakpoint()
                                 for fpath in zoom_dir.iterdir():
                                     if fpath.is_file():
                                         rows.append([city, style, z, fpath])
 
         # Construct a dataframe
-        df_counts = pd.DataFrame(rows, columns=['city', 'style', 'zoom', 'fpath'])
-        return df_counts
+        df_fns = pd.DataFrame(rows, columns=['city', 'style', 'zoom', 'fpath'])
+        return df_fns
 
     @staticmethod
     def get_channelwise_mean_std(
@@ -279,7 +284,7 @@ class MaptilesDataset(TwoFactorDataset):
                 img = plt.imread(fpath, format='jpg')[..., :n_channels]
             if img.dtype == np.uint8:
                 img = img / np.float32(256.)
-                
+
             n_pixels += img.size / n_channels
             channel_sum += np.sum(img, axis=(0, 1))
             channel_squared_sum += np.sum(img ** 2, axis=(0, 1))
