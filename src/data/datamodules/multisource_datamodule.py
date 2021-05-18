@@ -24,7 +24,7 @@ class MultiSourceDataModule(pl.LightningDataModule):
     - batch_size
 
     Optional init args:
-    - pin_momery
+    - pin_memory
     - num_workers
     - verbose
 
@@ -49,7 +49,7 @@ class MultiSourceDataModule(pl.LightningDataModule):
                  **kwargs):
         # required args
         super().__init__()
-        # Full dataset that concatnates multiple datasets
+        # Full dataset that concatenates multiple datasets
         self.data_root = data_root
         self.n_contents = n_contents
         self.source_names = source_names
