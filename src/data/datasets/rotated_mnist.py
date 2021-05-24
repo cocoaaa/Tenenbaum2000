@@ -1,4 +1,4 @@
-from typing import Optional, Callable, Dict, Union
+from typing import Optional, Callable, Dict, Union, Iterable
 from pathlib import Path
 import torch
 from torchvision import transforms
@@ -9,13 +9,14 @@ from .two_factor_dataset import TwoFactorDataset
 
 class RotatedMNIST(TwoFactorDataset):
 
-    _fn_formatspec = "{mode}_mnist_{angle}"
+    _fn_formatspec = "{mode}_mnist_rot{angle}"
     _keys = ['img', 'digit', 'angle']
 
     def __init__(
             self,
             data_root: Path,
-            angle: float,  # counter-clockwise
+            angle: float,  # counter-clockwise,
+            selected_inds: Iterable[int] = None,
             transform: Optional[Callable] = None,
             digit_label_transform: Optional[Callable] = None,
             angle_label_transform: Optional[Callable] = None,
@@ -23,6 +24,10 @@ class RotatedMNIST(TwoFactorDataset):
             download: bool = True,
 
     ):
+        """Sets self.data and self.digit_labels attribute
+        - self.data : List[PIL.Image]
+        - self.digit_labels: List
+        """
         print("angle: ", angle, " , type: ", type(angle))
         super().__init__()
         self.data_root = Path(data_root)
@@ -42,6 +47,10 @@ class RotatedMNIST(TwoFactorDataset):
         self.download = download
 
         self.data, self.digit_labels = get_mnist_data(self.data_root, self.train, self.download)
+
+        if selected_inds is not None:
+            self.data = [self.data[i] for i in selected_inds]
+            self.digit_labels = [self.digit_labels[i] for i in selected_inds]
 
     def __getitem__(self, index: int) -> Dict[str, Union[torch.Tensor, int, float]]:
         """Returns a sample of type Dict with keys:
