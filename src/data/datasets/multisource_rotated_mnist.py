@@ -15,6 +15,7 @@ class MultiRotatedMNIST(TwoFactorDataset):
     def __init__(self,
             data_root: Union[Path, str],
             angles: List[float],
+            selected_inds: Iterable[int] = None,
             transform: Optional[Callable] = None,
             digit_label_transform: Optional[Callable] = None,
             angle_label_transform: Optional[Callable] = None,
@@ -22,7 +23,6 @@ class MultiRotatedMNIST(TwoFactorDataset):
             download: bool = True,
     ):
         """
-
         :param data_root:  root dir that contains MNIST folder
         :param angles:
         :param transform:
@@ -36,6 +36,9 @@ class MultiRotatedMNIST(TwoFactorDataset):
         self.angles = sorted(angles)
         self.angle2idx = {angle:i for i, angle in enumerate(self.angles)}
         self.idx2angle = {i:angle for i, angle in enumerate(self.angles)}
+
+        # Optionally, set the indices of original MNIST dataset to be selected in this Dataset
+        self.selected_inds = selected_inds
 
         # Extra transform that will be applied after the base transforms, ToTensor() and TF.rotate
         self.transform = transform
@@ -58,6 +61,7 @@ class MultiRotatedMNIST(TwoFactorDataset):
             ds = RotatedMNIST(
                 data_root=self.data_root,
                 angle=angle,
+                selected_inds=self.selected_inds,
                 transform=self.transform,
                 digit_label_transform=self.digit_label_transform,
                 angle_label_transform=self.angle_label_transform,
