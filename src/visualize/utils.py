@@ -11,6 +11,34 @@ import warnings
 from src.utils.misc import info
 from src.data.transforms.functional import unnormalize
 
+"""
+TODO:
+- Eventually I want to separate out get_fig and show_npimgs to a module that doesn't import torch or torchvision
+    - because, these functions don't require torch library, and allows users of simply numpy and matplotlib to visualize 
+    a list of numpy arrays (eg. images)
+    - In that module, e.g. named as "src.utils.nparr", include any function that deals with  numpy arrays -- vs. not tensors
+        - e.g. src.utils.misc.info
+        
+
+"""
+def get_fig(n_total: int, nrows: int=None, factor=3.0) -> Tuple[plt.Figure, plt.Axes]:
+    """Create a tuple of plt.Figure and plt.Axes with total number of subplots `n_total` with `nrows` number of rows.
+    By default, nrows and ncols are sqrt of n_total.
+
+    :param n_total: total number of subplots
+    :param nrows: number of rows in this Figure
+    :param factor: scaling factor that is multipled to both to the row and column sizes
+    :return: Tuple[Figure, flatten list of Axes]
+    """
+    if nrows is None:
+        nrows = math.ceil(n_total ** .5)
+
+    ncols = math.ceil(n_total / nrows)
+    f, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(factor * ncols, factor * nrows))
+    axes = axes.flatten()
+    return f, axes
+
+
 def show_npimgs(npimgs: Iterable[np.ndarray], *,
                 titles: Iterable[Union[str, int]]=None,
                 nrows: int=None,
@@ -42,7 +70,7 @@ def show_timg(timg: torch.Tensor,
               subplots_kw=None,
               imshow_kw=None,
               axis_off=True,
-              save_path: Union[str, Path]=None):
+              save_path: Union[str, Path]=None) -> plt.Axes:
     """
 
     :param timg: 3dim tensor in order (c,h,w)
@@ -59,6 +87,7 @@ def show_timg(timg: torch.Tensor,
         imshow_kw = {}
 
     npimg = timg.numpy()
+
     f, ax = plt.subplots(**subplots_kw)
     ax.imshow(np.transpose(npimg, (1, 2, 0)),
                interpolation='nearest',
@@ -73,6 +102,8 @@ def show_timg(timg: torch.Tensor,
 
     if save_path is not None:
         f.savefig(save_path)
+
+    return ax
 
 
 def show_timgs(timgs: Iterable[torch.Tensor], order='chw', **kwargs) -> plt.Axes:
@@ -96,16 +127,6 @@ def show_timgs(timgs: Iterable[torch.Tensor], order='chw', **kwargs) -> plt.Axes
     if order == 'chw':
         npimgs = npimgs.transpose(0, -2, -1, 1)
     show_npimgs(npimgs, **kwargs)
-
-
-def get_fig(n_total: int, nrows: int= None, factor=3.0) -> Tuple[plt.Figure, plt.Axes]:
-    if nrows is None:
-        nrows = math.ceil(n_total ** .5)
-
-    ncols = math.ceil(n_total / nrows)
-    f, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(factor * ncols, factor * nrows))
-    axes = axes.flatten()
-    return f, axes
 
 
 def show_batch(dm, #: BaseDataModule,
