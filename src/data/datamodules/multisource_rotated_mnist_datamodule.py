@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from typing import Union, Tuple, Optional, List
+from typing import Union, Tuple, Optional, List, Iterable
 from pathlib import Path
 import torch
 import pytorch_lightning as pl
@@ -27,6 +27,7 @@ class MultiRotatedMNISTDataModule(MultiSourceDataModule):
                  shuffle: bool = True,
                  verbose: bool = False,
                  # Train/Val split
+                 selected_inds: Iterable[int] = None,
                  split_seed: Optional[int] = 123,
                  **kwargs
                  ):
@@ -44,10 +45,15 @@ class MultiRotatedMNISTDataModule(MultiSourceDataModule):
         :param num_workers:
         :param shuffle:
         :param verbose:
+        :param selected_inds: which of the original MNIST dataset we are going to use to create this datamodule
+            - each selected index's image will be rotated by each of the angles in `angles`
+
         :param split_seed: Seed that was used to split the full multi rotated Mnist dataset into train/val
          to generate the source datasets of each monochrome (eg. 123)
         In this class, this given seed will be used to split the full dataset into train, val datasets
         :param kwargs:
+            n_train
+            n_val
         """
         angles_str = [str(angle) for angle in sorted(angles)]
         n_contents = kwargs.get("n_contents", 10)
@@ -66,6 +72,7 @@ class MultiRotatedMNISTDataModule(MultiSourceDataModule):
 
         # Set attributes specific to this dataset
         self.angles = sorted(angles)
+        self.selected_inds = selected_inds
         # self.n_contents = n_contents # set by super class
         self.n_styles = len(angles)
         self.train_mean = torch.tensor([0.1307, ])
@@ -105,6 +112,7 @@ class MultiRotatedMNISTDataModule(MultiSourceDataModule):
             self.full_ds = MultiRotatedMNIST(
                 data_root=self.data_root,
                 angles=self.angles,
+                selected_inds=self.selected_inds,
                 transform=self.transform,
                 train=True,
             )
@@ -112,6 +120,13 @@ class MultiRotatedMNISTDataModule(MultiSourceDataModule):
             n_val = len(self.full_ds) - n_train
             self.n_train = kwargs.get('n_train', n_train)
             self.n_val = kwargs.get('n_val', n_val)
+
+            # # todo: remove
+            # print('len of each rot.dataset should be the same as len(selected_inds): ')
+            # print('len selected inds: ', len(self.selected_inds))
+            # print('each rot. dataset len: ', [len(dset) for dset in self.full_ds.dsets])
+            # breakpoint()
+
             self.train_ds, self.val_ds = random_split(self.full_ds, [self.n_train, self.n_val],
                                                       generator=torch.Generator().manual_seed(self.split_seed))
 
@@ -120,6 +135,7 @@ class MultiRotatedMNISTDataModule(MultiSourceDataModule):
             self.test_ds = MultiRotatedMNIST(
                 data_root=self.data_root,
                 angles=self.angles,
+                selected_inds=self.selected_inds,
                 transform=self.transform,
                 train=False,
             )
