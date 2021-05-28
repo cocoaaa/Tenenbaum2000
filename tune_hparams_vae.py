@@ -101,6 +101,7 @@ if __name__ == '__main__':
     parser.add_argument("--data_name", type=str, required=True)
     parser.add_argument("--mode", type=str, default='fit', help="fit or test")
     parser.add_argument("--log_root", type=str, default='./lightning_logs', help='root directory to save lightning logs')
+    parser.add_argument('--n_cpus',  type=int, default=8, help='Num of CPUs per trial')
     parser.add_argument("--gpu_ids", type=str, required=True, nargs='*',
                         help="GPU ID(s) to use") #Returns an empty list if not specified
 
@@ -301,7 +302,9 @@ if __name__ == '__main__':
         config=search_space,
         verbose=1,
         name="Tune-BiVAE", # logging directory
-        resources_per_trial={"cpu":16, "gpu": len(args.gpu_ids)},
+        local_dir="/data/log/ray",
+
+        resources_per_trial={"cpu":args.n_cpus, "gpu": len(args.gpu_ids)},
     )
 
     # dfs = analysis.fetch_trial_dataframes()

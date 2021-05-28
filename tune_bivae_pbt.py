@@ -57,12 +57,14 @@ import torchvision
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import LearningRateMonitor
+from pytorch_lightning.utilities.cloud_io import load as pl_load
 
 # Ray
 import ray
 from ray import tune
+from ray.tune.integration.pytorch_lightning import TuneReportCallback, TuneReportCheckpointCallback
 from ray.tune import CLIReporter
-from ray.tune.integration.pytorch_lightning import TuneReportCallback
+from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
 
 from src.callbacks.recon_logger import ReconLogger
 from src.callbacks.hist_logger import  HistogramLogger
@@ -77,10 +79,14 @@ from utils import get_model_class, get_dm_class
 from utils import instantiate_model, instantiate_dm
 from utils import add_base_arguments
 
-def train_tune(args: Union[Dict, Namespace]):
+def train_tune_checkpoint(args: Union[Dict, Namespace],
+               checkpoint_dir=None,
+               checkpoint_fn='checkpoint'):
     # Init. datamodule and model
     dm = instantiate_dm(args)
     dm.setup('fit')
+
+    # Init model
     model = instantiate_model(args)
 
     # Specify logger
@@ -92,7 +98,6 @@ def train_tune(args: Union[Dict, Namespace]):
                                              )
     log_dir = Path(tb_logger.log_dir)
     print("Log Dir: ", log_dir)
-    # breakpoint()
     if not log_dir.exists():
         log_dir.mkdir(parents=True)
         print("Created: ", log_dir)
@@ -100,11 +105,12 @@ def train_tune(args: Union[Dict, Namespace]):
     # Specify callbacks
     callbacks = [
         LearningRateMonitor(logging_interval='epoch'),
-        TuneReportCallback(
-            {
+        TuneReportCheckpointCallback(
+            metrics={
             'loss': 'val_loss',
             'mean_accuracy': 'val/style_acc', # use the string after pl.Module's "self.log("
             },
+            filename=checkpoint_fn, # where is this checkpoint_dir exactly?
             on="validation_end"
         ),
         # HistogramLogger(hist_epoch_interval=args.hist_epoch_interval),
@@ -126,17 +132,19 @@ def train_tune(args: Union[Dict, Namespace]):
         'terminate_on_nan':True,
         'check_val_every_n_epoch':10,
         'logger': tb_logger,
-        'callbacks': callbacks
+        # 'logger' = TensorBoardLogger(save_dir=tune.get_trial_dir(), name="", version="."), #for Ray PBT scheduler
+        'callbacks': callbacks,
     }
 
     # Init. trainer
     trainer = pl.Trainer.from_argparse_args(args, **trainer_overwrites)
 
-    # Log model's computational graph
-    model_wrapper = ModelWrapper(model)
-    # tb_logger.experiment.add_graph(model_wrapper, model.)
-    tb_logger.log_graph(model_wrapper)
-
+    # Optionally, load saved state_dict from the checkpoint
+    if checkpoint_dir is not None:
+        ckpt = pl_load(os.path.join(checkpoint_dir, checkpoint_fn),
+                       map_location=lambda storage, loc: storage)
+        model.load_state_dict(ckpt['state_dict'])
+        trainer.current_epoch = ckpt["epoch"]
 
     # ------------------------------------------------------------------------
     # Run the experiment
@@ -151,38 +159,19 @@ def train_tune(args: Union[Dict, Namespace]):
     # ------------------------------------------------------------------------
     # Log the best score and current experiment's hyperparameters
     # ------------------------------------------------------------------------
-    hparams = model.hparams.copy()
-    hparams.update(dm.hparams)
-    best_score = trainer.checkpoint_callback.best_model_score.item()
-    metrics = {'hparam/best_score': best_score}  # todo: define a metric and use it here
-    trainer.logger.log_hyperparams(hparams, metrics)
+    # hparams = model.hparams.copy()
+    # hparams.update(dm.hparams)
+    # best_score = trainer.checkpoint_callback.best_model_score.item()
+    # metrics = {'hparam/best_score': best_score}  # todo: define a metric and use it here
+    # trainer.logger.log_hyperparams(hparams, metrics)
+    #
+    # print("Logged hparams and metrics...")
+    # print("\t hparams: ")
+    # pprint(hparams)
+    # print("=====")
+    # print("\t metrics: ", metrics)
+    # print(f"Training Done: took {time.time() - start_time}")
 
-    print("Logged hparams and metrics...")
-    print("\t hparams: ")
-    pprint(hparams)
-    print("=====")
-    print("\t metrics: ", metrics)
-    print(f"Training Done: took {time.time() - start_time}")
-
-    # ------------------------------------------------------------------------
-    # Evaluation
-    #   1. Reconstructions:
-    #     x --> model.encoder(x) --> theta_z
-    #     --> sample N latent codes from the Pr(z; theta_z)
-    #     --> model.decoder(z) for each sampled z's
-    #   2. Embedding:
-    #       a mini-batch input -> mu_z, logvar_z
-    #       -> rsample
-    #       -> project to 2D -> visualize
-    #   3. Inspect the topology/landscape of the learned latent space
-    #     Latent traversal: Pick a dimension of the latent space.
-    #     - Keep all other dimensions' values constant.
-    #     - Vary the chosen dimenion's values (eg. linearly, spherically)
-    #     - and decode the latent codes. Show the outputs of the decoder.
-    #   4. Marginal Loglikelihood of train/val/test dataset
-    # ------------------------------------------------------------------------
-    # print("Evaluations...")
-    # model.eval()
 
 if __name__ == '__main__':
 
@@ -211,12 +200,13 @@ if __name__ == '__main__':
                         help="GPU ID(s) to use") #Returns an empty list if not specified
     parser.add_argument("--n_ray_samples", type=int, default=1,
                          help="Num of Ray Tune's run argument, num_samples")
-    parser.add_argument("--ray_log_dir", type=str, default="/data/log/ray",
+    parser.add_argument("--ray_log_dir", type=str, default="/data/log/ray/pbt",
                         help="dir to save training results from Ray")
     # Callback switch args
     parser = BetaScheduler.add_argparse_args(parser)
     # parser.add_argument("--hist_epoch_interval", type=int, default=10, help="Epoch interval to plot histogram of q's parameter")
     # parser.add_argument("--recon_epoch_interval", type=int, default=10, help="Epoch interval to plot reconstructions of train and val samples")
+
     args = parser.parse_args()
     print("Final args: ")
     pprint(args)
@@ -251,30 +241,30 @@ if __name__ == '__main__':
             print("Overwrote args: ", k)
 
         # Start experiment with this overwritten hyperparams
-        train_tune(args)
+        train_tune_checkpoint(args)
 
     # ------------------------------------------------------------------------
     # Specify hyperparameter search space
     # ------------------------------------------------------------------------
     # search_space = {
     #     "latent_dim": 20, #tune.grid_search([16, 32, 64,128]),
-    #     'is_`contrasive`': tune.grid_search([False, True]),
+    #     'is_contrasive': tune.grid_search([False, True]),
     #     'adv_loss_weight': tune.grid_search([5., 15., 45., 135., 405., 1215.]),
     #     'learning_rate': tune.grid_search(list(np.logspace(-4., -1, num=10))),
     #     'batch_size': tune.grid_search([32, 64, 128, 256, 512, 1024]),
     # }
     search_space = {
         # "latent_dim": tune.grid_search([10, 20, 60, 100]),
-        'enc_type': tune.grid_search(['conv', 'resnet']),
-        'dec_type': tune.grid_search(['conv', 'resnet']),
+        # 'enc_type': tune.grid_search(['conv', 'resnet']),
+        # 'dec_type': tune.grid_search(['conv', 'resnet']),
 
         'is_contrasive': tune.grid_search([False, True]),
-        'kld_weight': tune.grid_search([0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32., 64, 128., 256, 512, 1024]),
-        'use_beta_scheduler': False, #tune.grid_search([False,True]),
-        'adv_loss_weight': tune.grid_search([5., 15., 45., 135., 405., 1215.]),
+        'kld_weight': tune.grid_search([0.5, 1.0, 4.0, 16.0, 64, 256, 1024]), # can be tuned via PBT WHILE training
+        'use_beta_scheduler': False, #tune.grid_search([False,True]),  # can be tuned via PBT WHILE training
+        'adv_loss_weight': tune.grid_search([5., 15., 45., 135., 405., 1215.]),  # can be tuned via PBT WHILE training
 
-        'learning_rate': tune.grid_search(list(np.logspace(-4., -1, num=10))),
-        'batch_size': tune.grid_search([32, 64, 128,]),
+        'learning_rate': 1e-3, #tune.grid_search(list(np.logspace(-4., -1, num=10))),
+        'batch_size': 32, #tune.grid_search([32, 64, 128,]),
     }
 
     # ------------------------------------------------------------------------
@@ -282,8 +272,13 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------------
     ray.shutdown()
     ray.init(log_to_driver=False)
-    # search_alg =
-
+    # search_alg
+    scheduler = PopulationBasedTraining(
+        perturbation_interval=4,
+        hyperparam_mutations={
+            "learning_rate": tune.loguniform(1e-4, 1e-1),
+            "batch_size": [32, 64, 128]
+        })
     reporter = CLIReporter(
         parameter_columns=list(search_space.keys()),
         metric_columns=["loss", "mean_accuracy", "training_iteration"])
@@ -291,13 +286,13 @@ if __name__ == '__main__':
     analysis = tune.run(
         set_hparam_and_train_closure,
         config=search_space,
-        metric='loss', #set to val_loss
+        metric='loss',
         mode='min',
-        # search_alg=search_alg,
         num_samples=args.n_ray_samples,
         verbose=1,
+        scheduler=scheduler,
         progress_reporter=reporter,
-        name="Tune-BiVAE", # name of experiment
+        name="Tune-BiVAE-PBT", # name of experiment
         local_dir= args.ray_log_dir,
         resources_per_trial={"cpu":args.n_cpus, "gpu": len(args.gpu_ids)}, # there are 16cpus in arya machine; so at a time 16/2=8 trials will be run concurrently
     )

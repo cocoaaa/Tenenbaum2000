@@ -63,6 +63,7 @@ import ray
 from ray import tune
 from ray.tune import CLIReporter
 from ray.tune.integration.pytorch_lightning import TuneReportCallback
+from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
 
 from src.callbacks.recon_logger import ReconLogger
 from src.callbacks.hist_logger import  HistogramLogger
@@ -77,6 +78,7 @@ from utils import get_model_class, get_dm_class
 from utils import instantiate_model, instantiate_dm
 from utils import add_base_arguments
 
+
 def train_tune(args: Union[Dict, Namespace]):
     # Init. datamodule and model
     dm = instantiate_dm(args)
@@ -90,6 +92,17 @@ def train_tune(args: Union[Dict, Namespace]):
                                              name=exp_name,
                                              default_hp_metric=False,
                                              )
+
+    # Alternatively set tb logger dir to tune's trial dir
+    # tune_trial_log_dir = tune.get_trial_dir()
+    # print("\n=== TB Logger dir is set to tune's trial dir === ")
+    # print(tune_trial_log_dir)
+    # tb_logger = pl_loggers.TensorBoardLogger(save_dir=tune_trial_log_dir,
+    #                                          name=exp_name, #name="",
+    #                                          version='.',
+    #                                          default_hp_metric=False,
+    #                                          )
+
     log_dir = Path(tb_logger.log_dir)
     print("Log Dir: ", log_dir)
     # breakpoint()
@@ -100,8 +113,10 @@ def train_tune(args: Union[Dict, Namespace]):
     # Specify callbacks
     callbacks = [
         LearningRateMonitor(logging_interval='epoch'),
-        TuneReportCallback(
-            {
+
+        # Add a callback to report loss and style-prediction acc after
+        # each validation loop from the Trainer to Tune
+        TuneReportCallback({
             'loss': 'val_loss',
             'mean_accuracy': 'val/style_acc', # use the string after pl.Module's "self.log("
             },
@@ -142,10 +157,12 @@ def train_tune(args: Union[Dict, Namespace]):
     # Run the experiment
     # ------------------------------------------------------------------------
     start_time = time.time()
-    print(f"{exp_name} started...")
-    print(f"Logging to {Path(tb_logger.log_dir).absolute()}")
+    print("\n== Experiment starts ==")
+    print(f"Exp name: {exp_name}")
+    print(f"TB Log dir: {Path(tb_logger.log_dir).absolute()}")
     trainer.fit(model, dm)
-    print(f"Finished at ep {trainer.current_epoch, trainer.batch_idx}")
+
+    print(f"\n== Finished at ep {trainer.current_epoch, trainer.batch_idx} ==")
 
 
     # ------------------------------------------------------------------------
@@ -193,7 +210,7 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------------
     parser = add_base_arguments(parser)
     args, unknown = parser.parse_known_args()
-    print("Base CLI args: ")
+    print("\n === Base CLI args ===")
     pprint(args)
 
     # ------------------------------------------------------------------------
@@ -218,13 +235,13 @@ if __name__ == '__main__':
     # parser.add_argument("--hist_epoch_interval", type=int, default=10, help="Epoch interval to plot histogram of q's parameter")
     # parser.add_argument("--recon_epoch_interval", type=int, default=10, help="Epoch interval to plot reconstructions of train and val samples")
     args = parser.parse_args()
-    print("Final args: ")
-    pprint(args)
+    print("\n == All CLI args == ")
+    pprint(vars(args))
 
     # Select Visible GPU
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(args.gpu_ids)
-    print("===GPUs===")
+    print("\n === GPUs ===")
     print(os.environ["CUDA_VISIBLE_DEVICES"])
 
     def set_hparam_and_train_closure(config: Dict[str, Any]):
@@ -240,15 +257,19 @@ if __name__ == '__main__':
         -------
         None. Train the model in the specified hyperparmeter space
         """
-        print("Inside the clousure===")
-        pprint(args)
-        print("===")
+        print("\n=== Inside the clousure: args ===")
+        pprint(vars(args))
+
+        print("\n=== Selected hyperparam config === ")
         pprint(config)
 
         d_args =  vars(args)
         for k, v in config.items():
             d_args[k] = v
-            print("Overwrote args: ", k)
+            print(f"Overwrote args: {k} --> {d_args[k]}")
+
+        print("\n=== Final training args === ")
+        pprint(vars(args))
 
         # Start experiment with this overwritten hyperparams
         train_tune(args)
@@ -258,23 +279,36 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------------
     # search_space = {
     #     "latent_dim": 20, #tune.grid_search([16, 32, 64,128]),
-    #     'is_`contrasive`': tune.grid_search([False, True]),
+    #     'is_contrasive': tune.grid_search([False, True]),
     #     'adv_loss_weight': tune.grid_search([5., 15., 45., 135., 405., 1215.]),
     #     'learning_rate': tune.grid_search(list(np.logspace(-4., -1, num=10))),
     #     'batch_size': tune.grid_search([32, 64, 128, 256, 512, 1024]),
     # }
+    # search_space = {
+    #     # "latent_dim": tune.grid_search([10, 20, 60, 100]),
+    #     'enc_type': tune.grid_search(['conv', 'resnet']),
+    #     'dec_type': tune.grid_search(['conv', 'resnet']),
+    #
+    #     'is_contrasive': tune.grid_search([False, True]),
+    #     'kld_weight': tune.grid_search([0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32., 64, 128., 256, 512, 1024]),
+    #     'use_beta_scheduler': False, #tune.grid_search([False,True]),
+    #     'adv_loss_weight': tune.grid_search([5., 15., 45., 135., 405., 1215.]),
+    #
+    #     'learning_rate': tune.grid_search(list(np.logspace(-4., -1, num=10))),
+    #     'batch_size': tune.grid_search([32, 64, 128,]),
+    # }
+
     search_space = {
-        # "latent_dim": tune.grid_search([10, 20, 60, 100]),
-        'enc_type': tune.grid_search(['conv', 'resnet']),
-        'dec_type': tune.grid_search(['conv', 'resnet']),
-
-        'is_contrasive': tune.grid_search([False, True]),
-        'kld_weight': tune.grid_search([0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32., 64, 128., 256, 512, 1024]),
-        'use_beta_scheduler': False, #tune.grid_search([False,True]),
-        'adv_loss_weight': tune.grid_search([5., 15., 45., 135., 405., 1215.]),
-
-        'learning_rate': tune.grid_search(list(np.logspace(-4., -1, num=10))),
-        'batch_size': tune.grid_search([32, 64, 128,]),
+        'latent_dim': tune.choice([32, 64, 128]),  # dim of the entire latent space (ie. 2*dim(C) = 2*dim(S))
+        'enc_type': 'conv', #tune.choice(['conv', 'resnet']),
+        'dec_type': 'conv', #tune.choice(['conv', 'resnet']),
+        'is_contrasive': tune.choice([False, True]),
+        'kld_weight': tune.choice([0.5, 1.0, 5.0, 10.]), #[0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32., 64, 128., 256, 512, 1024]), #np.array([0.5*(2**i) for i in range(12)])
+        'use_beta_scheduler': True, #tune.grid_search([False,True]),
+        # 'adv_loss_weight': tune.choice(np.logspace(0.0, 7.0, num=8, base=3.0)),
+        'adv_loss_weight': tune.choice([1., 3.0, 9.0, 27.0, 81., 243., 729., 1500., 2000., 2500., 3000., 4000.]),
+        'learning_rate': tune.loguniform(1e-4, 1e-1), #tune.grid_search(list(np.logspace(-4., -1, num=10))),
+        'batch_size': tune.choice([32, 64, 128,]),
     }
 
     # ------------------------------------------------------------------------
@@ -283,6 +317,11 @@ if __name__ == '__main__':
     ray.shutdown()
     ray.init(log_to_driver=False)
     # search_alg =
+
+    scheduler = ASHAScheduler(
+        max_t=args.max_epochs,
+        grace_period=1,
+        reduction_factor=2)
 
     reporter = CLIReporter(
         parameter_columns=list(search_space.keys()),
@@ -297,7 +336,7 @@ if __name__ == '__main__':
         num_samples=args.n_ray_samples,
         verbose=1,
         progress_reporter=reporter,
-        name="Tune-BiVAE", # name of experiment
+        name="Tune-ASHA", # name of experiment
         local_dir= args.ray_log_dir,
         resources_per_trial={"cpu":args.n_cpus, "gpu": len(args.gpu_ids)}, # there are 16cpus in arya machine; so at a time 16/2=8 trials will be run concurrently
     )

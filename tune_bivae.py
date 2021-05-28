@@ -34,6 +34,13 @@ To run: (at the root of the project, ie. /data/hayley-old/Tenanbaum2000
 --gpu_id=2 --max_epochs=300 --batch_size=128 -lr 1e-3  --terminate_on_nan=True  \
 --log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-14-ray/" &
 
+ nohup python tune_hparams_bivae.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 64 64 --adv_dim 32 32 32 --adv_weight 15.0 \
+--use_beta_scheduler \
+--data_name="multi_mono_mnist" --colors red green blue --n_styles=3 \
+--gpu_id=2 --max_epochs=300 --batch_size=128 -lr 1e-3  --terminate_on_nan=True  \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-01-14-ray/" &
+
 # View the Ray dashboard at http://127.0.0.1:8265
 # Run this at  local terminal:
 # ssh -NfL 8265:localhost:8265 arya
@@ -258,23 +265,35 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------------
     # search_space = {
     #     "latent_dim": 20, #tune.grid_search([16, 32, 64,128]),
-    #     'is_`contrasive`': tune.grid_search([False, True]),
+    #     'is_contrasive': tune.grid_search([False, True]),
     #     'adv_loss_weight': tune.grid_search([5., 15., 45., 135., 405., 1215.]),
     #     'learning_rate': tune.grid_search(list(np.logspace(-4., -1, num=10))),
     #     'batch_size': tune.grid_search([32, 64, 128, 256, 512, 1024]),
     # }
+    # search_space = {
+    #     # "latent_dim": tune.grid_search([10, 20, 60, 100]),
+    #     'enc_type': tune.grid_search(['conv', 'resnet']),
+    #     'dec_type': tune.grid_search(['conv', 'resnet']),
+    #
+    #     'is_contrasive': tune.grid_search([False, True]),
+    #     'kld_weight': tune.grid_search([0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32., 64, 128., 256, 512, 1024]),
+    #     'use_beta_scheduler': False, #tune.grid_search([False,True]),
+    #     'adv_loss_weight': tune.grid_search([5., 15., 45., 135., 405., 1215.]),
+    #
+    #     'learning_rate': tune.grid_search(list(np.logspace(-4., -1, num=10))),
+    #     'batch_size': tune.grid_search([32, 64, 128,]),
+    # }
+
     search_space = {
         # "latent_dim": tune.grid_search([10, 20, 60, 100]),
-        'enc_type': tune.grid_search(['conv', 'resnet']),
-        'dec_type': tune.grid_search(['conv', 'resnet']),
-
-        'is_contrasive': tune.grid_search([False, True]),
-        'kld_weight': tune.grid_search([0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32., 64, 128., 256, 512, 1024]),
+        'enc_type': tune.choice(['conv', 'resnet']),
+        'dec_type': tune.choice(['conv', 'resnet']),
+        'is_contrasive': tune.choice([False, True]),
+        'kld_weight': tune.choice(np.array([0.5*(2**i) for i in range(12)])), #[0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32., 64, 128., 256, 512, 1024]), #np.array([0.5*(2**i) for i in range(12)])
         'use_beta_scheduler': False, #tune.grid_search([False,True]),
-        'adv_loss_weight': tune.grid_search([5., 15., 45., 135., 405., 1215.]),
-
-        'learning_rate': tune.grid_search(list(np.logspace(-4., -1, num=10))),
-        'batch_size': tune.grid_search([32, 64, 128,]),
+        'adv_loss_weight': tune.choice(np.logspace(0.0, 7.0, num=8, base=3.0)),
+        'learning_rate': tune.loguniform(1e-4, 1e-1), #tune.grid_search(list(np.logspace(-4., -1, num=10))),
+        'batch_size': tune.choice([32, 64, 128,]),
     }
 
     # ------------------------------------------------------------------------
