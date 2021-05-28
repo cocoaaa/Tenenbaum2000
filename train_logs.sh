@@ -1685,3 +1685,314 @@ nohup python train_grid_search.py \
 --in_shape 3 64 64 \
 --gpu_id 0  --max_epochs 150   --terminate_on_nan=True  \
 --log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-03-08/" \ &
+
+
+
+# May 18, 2021
+# Train BiVAE on Multi OSMnxRoads
+# -- only on paris
+nohup python train_grid_search.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 --adv_weight 1.0 \
+--data_root="/data/hayley-old/osmnx_data/images" \
+--data_name="osmnx_roads" \
+--cities paris \
+--bgcolors "k" "r" "g" "b" "y" --n_styles=5 \
+--zooms 14 \
+--gpu_id=2 --max_epochs=300   --terminate_on_nan=True  \
+-lr 3e-4 -bs 32 \`
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-18/" &
+
+# -- on all cities
+nohup python train_grid_search.py --model_name="bivae" \
+--latent_dim=20 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 --adv_weight 1.0 \
+--data_root="/data/hayley-old/osmnx_data/images" \
+--data_name="osmnx_roads" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+     'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' \
+     'berlin' 'montreal' 'rome' \
+--bgcolors "k" "r" "g" "b" "y" --n_styles=5 \
+--zooms 14 \
+--gpu_id=2 --max_epochs=300   --terminate_on_nan=True  \
+--in_shape 3 64 64 \
+-lr 3e-4 -bs 32 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-18-64x64/" &
+
+
+
+
+# ------------------------------------------------------------------------
+# May 19, 2021
+# Made a new hparam search ('tuning') script with ray-tune's Asynchronous SHA algorithm
+# See the script: `tune_asha.py`
+# See the doc: https://docs.ray.io/en/master/tune/tutorials/tune-pytorch-lightning.html#tuning-the-model-parameters
+
+# First test if it works as expected
+# -- on OSMnxRoads data; one city for faster training (say, paris); three bgcolors ('r','g','b')
+# TODO: CHECK
+# -- [ ] does n_ray_samples correctly specify how many total hparam configurations to be searched?
+# -- [ ] do you see the CLI report in nohup.out (or whatever the commandline redirected file)?
+# -- [ ] check the Ray tune's output directory where Tune stores the training reports (and model too?)
+# -- [ ] check if the tb logger is correctly storing the training reports to the specified `log_dir`
+RAY_PDB=1 python tune_asha.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 \
+--data_root="/data/hayley-old/osmnx_data/images" \
+--data_name="osmnx_roads" \
+--cities 'paris' \
+--bgcolors "k" "r" "g" "b" "y" --n_styles=5 \
+--zooms 14 \
+--gpu_id=2  --max_epochs=300   --terminate_on_nan=True  \
+--n_ray_samples 1 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-19-ray/"
+
+RAY_PDB=1 python tune_asha.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 \
+--data_root="/data/hayley-old/osmnx_data/images" \
+--data_name="osmnx_roads" \
+--cities 'paris' \
+--bgcolors "k" "r" "g" "b" "y" --n_styles=5 \
+--zooms 14 \
+--gpu_id=2  --max_epochs=300   --terminate_on_nan=True  \
+--n_ray_samples 100 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-19-ray/"
+
+
+
+# Now let's run on data with all cities
+python tune_asha.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 \
+--data_root="/data/hayley-old/osmnx_data/images" \
+--data_name="osmnx_roads" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+     'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' \
+     'berlin' 'montreal' 'rome' \
+--bgcolors "k" "r" "g" "b" "y" --n_styles=5 \
+--zooms 14 \
+--gpu_id=0  --max_epochs=300   --terminate_on_nan=True  \
+--n_ray_samples 100 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-19-ray/" | tee logs/0519/all-cities.txt
+
+
+# localhost 8266
+# started 7.50pm
+nohup python tune_asha.py --model_name="bivae" \
+--latent_dim=20 --hidden_dims 32 64 128 256 --adv_dim 32 32 32 \
+--data_root="/data/hayley-old/osmnx_data/images" \
+--data_name="osmnx_roads" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+     'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' \
+     'berlin' 'montreal' 'rome' \
+--bgcolors "k" "r" "g" "b" "y" --n_styles=5 \
+--zooms 14 \
+--gpu_id=1  --max_epochs=300   --terminate_on_nan=True  \
+--n_ray_samples 100 \
+--in_shape 3 64 64 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-19-64x64-ray/" | tee logs/0519/all-cities-64x64.txt &
+
+
+# May 24, 2021
+# Train BiVAE on Multi Rotated MNIST
+nohup python train.py --model_name="bivae" \
+--latent_dim=10 --hidden_dims 32 64 64 64 --adv_dim 32  \
+--data_name="multi_rotated_mnist" --angles 0 15 30 45 60 --n_styles=5 \
+--gpu_id=3 --max_epochs=400   --terminate_on_nan=True  \
+-lr 3e-3 --adv_weight 2000.0 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-23/" &
+
+nohup python train.py --model_name="bivae" \
+--latent_dim=4 --hidden_dims 32 64 64 64 --adv_dim 32  \
+--data_name="multi_rotated_mnist" --angles 0 15 30 45 60 --n_styles=5 \
+--gpu_id=1 --max_epochs=400   --terminate_on_nan=True  \
+-lr 3e-3 --adv_weight 2000.0 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-23/" &
+
+# latent_dim = 4 (fixed)
+# WaitingFor at Terminal "4dim_2trials"
+# 2021-05-24 15:51:22,838 INFO services.py:1172 -- View the Ray dashboard at http://127.0.0.1:8265
+python tune_asha.py --model_name="bivae" \
+--latent_dim=4 --hidden_dims 32 64 64 64 --adv_dim 32 \
+--enc_type='conv' --dec_type='conv' \
+--data_name="multi_rotated_mnist" --angles 0 15 30 45 60 --n_styles=5 \
+--gpu_id=1  --max_epochs=300   --terminate_on_nan=True  \
+--n_ray_samples 2 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-23-ray/"
+
+# <---- check this guy ---->
+# latent_dim = 4 (fixed)
+# 2021-05-24 15:57:04,546 INFO services.py:1172 -- View the Ray dashboard at http://127.0.0.1:8266 --> died?
+#[1] 15717
+#2021-05-24 18:25:36,756 INFO services.py:1172 -- View the Ray dashboard at http://127.0.0.1:8267
+nohup python tune_asha.py --model_name="bivae" \
+--latent_dim=4 --hidden_dims 32 64 64 64 --adv_dim 32 \
+--enc_type='conv' --dec_type='conv' \
+--data_name="multi_rotated_mnist" --angles 0 15 30 45 60 --n_styles=5 \
+--gpu_id=2  --max_epochs=300   --terminate_on_nan=True  \
+--n_ray_samples 50 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-23-ray/" | tee logs/rotated-mnist-tune-asha-05-24-retry.txt &
+
+# latent_dim is also a hyperparameter
+# Even though we input it in CLI below, the value of latent_dim will be overwritten in the script
+# WaitingFor at Terminal "2trials"
+#[1] 31956
+#2021-05-24 16:16:32,220 INFO services.py:1172 -- View the Ray dashboard at http://127.0.0.1:8268 --> died?
+#nohup python tune_asha_mnistr.py --model_name="bivae" \
+#--latent_dim=4 \
+#--hidden_dims 32 64 64 64 --adv_dim 32 \
+#--enc_type='conv' --dec_type='conv' \
+#--data_name="multi_rotated_mnist" --angles 0 15 30 45 60 --n_styles=5 \
+#--gpu_id=1  --max_epochs=300   --terminate_on_nan=True  \
+#--n_ray_samples 2 \
+#--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-23-ray/" &
+
+# <---- check this guy ----> #waiting
+# latent_dim is also a hyperparameter
+# Even though we input it in CLI below, the value of latent_dim will be overwritten in the script
+# WaitingFor at Terminal "50trials"
+# 2021-05-24 16:14:43,954       INFO services.py:1172 -- View the Ray dashboard at http://127.0.0.1:8267 -->died?
+
+# ===== retry:
+# latent_dim is also a hyperparameter
+#[2] 18369
+#2021-05-24 18:28:06,471 INFO services.py:1172 -- View the Ray dashboard at http://127.0.0.1:8268
+nohup python tune_asha_mnistr.py --model_name="bivae" \
+--latent_dim=4 \
+--hidden_dims 32 64 64 64 --adv_dim 32 \
+--enc_type='conv' --dec_type='conv' \
+--data_name="multi_rotated_mnist" --angles 0 15 30 45 60 --n_styles=5 \
+--gpu_id=2  --max_epochs=300   --terminate_on_nan=True  \
+--n_ray_samples 50 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-23-ray/" | tee logs/rotated-mnist-tune-asha-latent-05-26.txt &
+
+
+
+# <---- check the two below guy ----> #waiting
+# Rerunning hparam tuning on osmnx data
+#    search_space = {
+#        'enc_type': tune.choice(['conv', 'resnet']),
+#        'dec_type': tune.choice(['conv', 'resnet']),
+#        'latent_dim': tune.choice([64, 128]), # dim of the entire latent space (ie. 2*dim(C) = 2*dim(S))
+#        'is_contrasive': tune.choice([False, True]),
+#        'kld_weight': tune.choice(np.array([0.5*(2**i) for i in range(12)])), #[0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32., 64, 128., 256, 512, 1024]), #np.array([0.5*(2**i) for i in range(12)])
+#        'use_beta_scheduler': False, #tune.grid_search([False,True]),
+#        # 'adv_loss_weight': tune.choice(np.logspace(0.0, 7.0, num=8, base=3.0)),
+#        'adv_loss_weight': tune.choice([1., 3.0, 9.0, 27.0, 81., 243., 729., 1500., 2000., 2500., 3000., 4000.]),
+#        'learning_rate': tune.loguniform(1e-4, 1e-1), #tune.grid_search(list(np.logspace(-4., -1, num=10))),
+#        'batch_size': tune.choice([32, 64, 128,]),
+#    }
+#[1] 5277
+#2021-05-24 17:55:54,518 INFO services.py:1172 -- View the Ray dashboard at http://127.0.0.1:8265
+nohup python tune_asha_osmnx_roads.py --model_name="bivae" \
+--latent_dim=64 --hidden_dims 32 64 128 256 --adv_dim 32 32 \
+--data_root="/data/hayley-old/osmnx_data/images" \
+--data_name="osmnx_roads" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+     'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' \
+     'berlin' 'montreal' 'rome' \
+--bgcolors "k" "r" "g" "b" "y" --n_styles=5 \
+--zooms 14 \
+--gpu_id=1  --max_epochs=300   --terminate_on_nan=True  \
+--n_ray_samples 2 \
+--in_shape 3 64 64 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-19-64x64-ray/" | tee logs/osmnx-roads-64x64-tune-asha-05-24-test.txt &
+
+#waiting  -- [1] 5837
+#2021-05-24 17:56:38,658 INFO services.py:1172 -- View the Ray dashboard at http://127.0.0.1:8266
+nohup python tune_asha_osmnx_roads.py --model_name="bivae" \
+--latent_dim=64 --hidden_dims 32 64 128 256 --adv_dim 32 32 \
+--data_root="/data/hayley-old/osmnx_data/images" \
+--data_name="osmnx_roads" \
+--cities 'la' 'charlotte' 'vegas' 'boston' 'paris' \
+     'amsterdam' 'shanghai' 'seoul' 'chicago' 'manhattan' \
+     'berlin' 'montreal' 'rome' \
+--bgcolors "k" "r" "g" "b" "y" --n_styles=5 \
+--zooms 14 \
+--gpu_id=1  --max_epochs=300   --terminate_on_nan=True  \
+--n_ray_samples 100 \
+--in_shape 3 64 64 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-19-64x64-ray/" | tee logs/osmnx-roads-64x64-tune-asha-05-24.txt &
+
+
+
+# May 26, 2021
+#[1] 11662
+#$ 2021-05-26 18:53:44,720       INFO services.py:1172 -- View the Ray dashboard at http://127.0.0.1:8265
+nohup python tune_asha.py --model_name="bivae" \
+--latent_dim=4 --hidden_dims 32 64 64 64 --adv_dim 32 \
+--enc_type='conv' --dec_type='conv' \
+--data_name="multi_rotated_mnist" --angles 0 15 30 45 60 --n_styles=5 \
+--gpu_id=2  --max_epochs=300   --terminate_on_nan=True  \
+--n_ray_samples 50 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-23-ray/" | tee logs/rotated-mnist-tune-asha-latent4-05-26.txt &
+
+
+#[2] 12149
+#2021-05-26 18:54:04,618 INFO services.py:1172 -- View the Ray dashboard at http://127.0.0.1:8266
+# latent_dim is also a hyperparameter; i.e. latent_dim=4 will be overwritten
+nohup python tune_asha_mnistr.py --model_name="bivae" \
+--latent_dim=4 \
+--hidden_dims 32 64 64 64 --adv_dim 32 \
+--enc_type='conv' --dec_type='conv' \
+--data_name="multi_rotated_mnist" --angles 0 15 30 45 60 --n_styles=5 \
+--gpu_id=2  --max_epochs=300   --terminate_on_nan=True  \
+--n_ray_samples 50 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-23-ray/" | tee logs/rotated-mnist-tune-asha-vary-latent-05-26.txt &
+
+# May 27, 2021
+#[1] 3053
+#2021-05-27 09:09:56,891 INFO services.py:1172 -- View the Ray dashboard at http://127.0.0.1:8267
+nohup python tune_asha_mnistr.py --model_name="bivae" \
+--latent_dim=0 \
+--hidden_dims 32 64 64 64 --adv_dim 32 32 \
+--enc_type='conv' --dec_type='conv' \
+--data_name="multi_rotated_mnist" --angles 0 15 30 45 60 --n_styles=5 \
+--gpu_id=2  --max_epochs=300   --terminate_on_nan=True  \
+--n_ray_samples 50 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-23-ray/" | tee logs/rotated-mnist-tune-asha-vary-latent-05-27.txt &
+
+
+# Train bivae with varying latent dim (one of 32,64,128)
+# with kld_loss (beta in beta_vae and DIVA) to be one of [1,5,10] -- as in DIVA's experiments; --> added .5 for fun
+# with beta scheduler (cyclic)
+# latent_dim=4 will be overwritten via a sampled hyperparam config
+# terminal: local (3)
+#[1] 31160
+#2021-05-27 09:18:16,261 INFO services.py:1172 -- View the Ray dashboard at http://127.0.0.1:8268
+nohup python tune_asha_with_beta_scheduler.py --model_name="bivae" \
+--latent_dim=4 --hidden_dims 32 64 64 64 --adv_dim 32 \
+--enc_type='conv' --dec_type='conv' \
+--data_name="multi_rotated_mnist" --angles 0 15 30 45 60 --n_styles=5 \
+--gpu_id=2  --max_epochs=300   --terminate_on_nan=True  \
+--n_ray_samples 50 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-23-ray/" | tee logs/rotated-mnist-tune-asha-with-beta-scheduler-05-27.txt &
+
+# it seems like when latent-dim = 32, kld=1.0, adv_weight = 1500.0
+# the style acc is very good.
+# How about if latent dim = 4
+nohup python train.py --model_name="bivae" \
+--latent_dim=4 --hidden_dims 32 64 64 64 --adv_dim 32  \
+--data_name="multi_rotated_mnist" --angles 0 15 30 45 60 --n_styles=5 \
+--gpu_id=2 --max_epochs=400   --terminate_on_nan=True  \
+-lr 3e-3 \
+--kld_weight 1.0 \
+--adv_weight 1500.0 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-23-ray/" &
+
+
+nohup python train.py --model_name="bivae" \
+--latent_dim=4 --hidden_dims 32 64 64 64 --adv_dim 32  \
+--data_name="multi_rotated_mnist" --angles 0 15 30 45 60 --n_styles=5 \
+--gpu_id=2 --max_epochs=400   --terminate_on_nan=True  \
+-lr 3e-3 \
+--kld_weight 1.0 \
+--adv_weight 1500.0 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-27/" &
+
+
+nohup python tune_asha_mnistr.py --model_name="bivae" \
+--latent_dim=0 \
+--hidden_dims 32 64 64 64 --adv_dim 32 32 \
+--enc_type='conv' --dec_type='conv' \
+--data_name="multi_rotated_mnist" --angles 0 15 30 45 60 --n_styles=5 \
+--gpu_id=2  --max_epochs=300   --terminate_on_nan=True  \
+--n_ray_samples 50 \
+--log_root="/data/hayley-old/Tenanbaum2000/lightning_logs/2021-05-23-ray/" | tee logs/rotated-mnist-tune-asha-vary-latent-05-27-v2.txt &
+
