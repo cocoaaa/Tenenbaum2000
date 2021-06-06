@@ -166,6 +166,11 @@ class MultiSourceDataModule(pl.LightningDataModule):
         -------
             2 or 3 dim np.ndarray for the image representative of style d and content y
         """
+        if d >= self.n_style:
+            raise ValueError("d must be in range({self.n_style})", d)
+        if y >= self.n_contents:
+            raise ValueError("y must be in range({self.n_content})", y)
+
         h, w = self.in_shape[-2:]
         return reps[h*d:h*(d+1), w*y:w*(y+1)]
 

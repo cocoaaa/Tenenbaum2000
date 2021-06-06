@@ -99,6 +99,11 @@ class TwoFactorDataset(Dataset):
         a collection of representative/random sample image of each contnet (row) and each style (col),
         return the image as np.array of the sample image of content_label=y and style_label=d
         """
+        if d >= self.n_style:
+            raise ValueError("d must be in range({self.n_style})", d)
+        if y >= self.n_contents:
+            raise ValueError("y must be in range({self.n_content})", y)
+
         in_shape = self.get_x_shape()
         h, w = in_shape[-2:]
         return reps[h*d : h*(d+1), w*y : w*(y+1)]
