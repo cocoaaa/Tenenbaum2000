@@ -129,18 +129,20 @@ class MultiSourceDataModule(pl.LightningDataModule):
         dl = getattr(self, f'{mode}_dataloader')()
         ds = dl.dataset
 
-        reps = np.zeros((self.n_styles * w, self.n_contents * h))
+        #todo: replace the following with TwoFactorDataset's `get_content_style_reps` method:
+        #return ds.get_content_style_reps(self.n_contents, self.n_styles)
+        reps = np.zeros((self.n_styles * h, self.n_contents * w))
         is_collected = np.zeros((self.n_styles, self.n_contents))
         for i in range(len(ds)):
             if is_collected.all():
                 break
 
             sample = ds[i]
-            x, label_c, label_s = self.unpack(sample)
+            x, y, d = self.unpack(sample)
             #         if isinstance(label_c, torch.Tensor):
             #             label_c = label_c.item()
-            reps[h * label_s:h * (label_s + 1), w * label_c:w * (label_c + 1)] = x.numpy()
-            is_collected[label_s, label_c] = True
+            reps[h*d:h*(d+1), w*y:w*(y+1)] = x.numpy()
+            is_collected[d, y] = True
 
         return reps
 
@@ -155,5 +157,5 @@ class MultiSourceDataModule(pl.LightningDataModule):
         return the image as np.array of the sample image of content_label=y and style_label=d
         """
         h, w = self.in_shape[-2:]
-        return reps[h * d:h * (d + 1), w * y:w * (y + 1)]
+        return reps[h*d:h*(d+1), w*y:w*(y+1)]
 

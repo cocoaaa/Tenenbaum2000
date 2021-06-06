@@ -74,18 +74,18 @@ class TwoFactorDataset(Dataset):
         in_shape = self.get_x_shape()
         h, w = in_shape[-2:]
 
-        reps = np.zeros((n_styles * w, n_contents * h))
+        reps = np.zeros((n_styles * h, n_contents * w))
         is_collected = np.zeros((n_styles, n_contents))
         for i in range(len(self)):
             if is_collected.all():
                 break
 
             sample = self[i]
-            x, label_c, label_s = self.unpack(sample)
+            x, y, d = self.unpack(sample)
             #         if isinstance(label_c, torch.Tensor):
             #             label_c = label_c.item()
-            reps[h * label_s:h * (label_s + 1), w * label_c:w * (label_c + 1)] = x.numpy()
-            is_collected[label_s, label_c] = True
+            reps[h*d : h*(d+1), w*y : w*(y+1)] = x.numpy()
+            is_collected[d, y] = True
 
         return reps
 
@@ -101,7 +101,7 @@ class TwoFactorDataset(Dataset):
         """
         in_shape = self.get_x_shape()
         h, w = in_shape[-2:]
-        return reps[h * d:h * (d + 1), w * y:w * (y + 1)]
+        return reps[h*d : h*(d+1), w*y : w*(y+1)]
 
     @classmethod
     def keys(cls) -> List[str]:
