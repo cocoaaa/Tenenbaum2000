@@ -92,8 +92,8 @@ class TwoFactorDataset(Dataset):
     def select_a_content_style_repr(
             self: "TwoFactorDataset",
             reps: np.ndarray,
-            y: int,  # content-label
             d: int,  # style-label
+            y: int,  # content-label
     ) -> np.ndarray:
         """Given the 2-dim (if each image is grayscale; if color 3-dim) np.array that is
         a collection of representative/random sample image of each contnet (row) and each style (col),

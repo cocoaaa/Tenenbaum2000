@@ -149,12 +149,22 @@ class MultiSourceDataModule(pl.LightningDataModule):
     def select_a_content_style_repr(
             self,
             reps: np.ndarray,
-            y: int,  # content-label
-            d: int,  # style-label
+            d: int,  # style-label (index into row)
+            y: int,  # content-label (index into col)
     ) -> np.ndarray:
         """Given the 2-dim (if each image is grayscale; if color 3-dim) np.array that is
         a collection of representative/random sample image of each contnet (row) and each style (col),
         return the image as np.array of the sample image of content_label=y and style_label=d
+
+        args
+        ----
+            reprs (nd.ndarray) : image of style_label d and content_label y is stored at reprs
+            d (int) : style class label
+            y (int) : content class label
+
+        returns
+        -------
+            2 or 3 dim np.ndarray for the image representative of style d and content y
         """
         h, w = self.in_shape[-2:]
         return reps[h*d:h*(d+1), w*y:w*(y+1)]
